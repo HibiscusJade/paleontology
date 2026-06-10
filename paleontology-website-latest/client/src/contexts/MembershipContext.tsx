@@ -1207,7 +1207,23 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const getBranchName = (id: string): string => {
-    const b: { [key: string]: string } = {
+    // 优先使用 shared/constants 的 BRANCH_MAP（字符串 ID，如 "wtxfh"）
+    const stringMap: { [key: string]: string } = {
+      "gwjzdwxfh": "古无脊椎动物学分会",
+      "kpgzwyh": "科普工作委员会",
+      "bfxfh": "孢粉学分会",
+      "wtxfh": "微体学分会",
+      "hszlzwyh": "化石藻类专业委员会",
+      "gzwxfh": "古植物学分会",
+      "dqswx": "地球生物学分会",
+      "gst": "古生态专业分会",
+      "gjzdw": "古脊椎动物学分会",
+      "swcj": "生物沉积学分会",
+      "xjsxff": "新技术新方法专业委员会",
+    };
+    if (stringMap[id]) return stringMap[id];
+    // 兼容旧的数字 ID 格式
+    const numericMap: { [key: string]: string } = {
       "1": "古无脊椎动物学分会",
       "2": "科普工作委员会",
       "3": "孢粉学分会",
@@ -1220,27 +1236,36 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       "10": "生物沉积学分会",
       "11": "新技术新方法专业委员会"
     };
-    return b[id] || "学术分会";
+    return numericMap[id] || "学术分会";
   };
 
   const getConferenceTitle = (id: string): string => {
     const c: { [key: string]: string } = {
+      "demo-conf": "【演示会议】古无脊椎动物学学术工作坊",
       "conf-1": "第十五届全国微体古生物学学术研讨会",
       "conf-2": "2026年度古植物学与环境演变论坛",
       "conf-3": "热河生物群国际学术研讨会",
       "conf-4": "第十二届全国古脊椎动物学学术年会",
-      "conf-5": "中国孢粉学会第十届全国学术大会"
+      "conf-5": "中国孢粉学会第十届全国学术大会",
+      "conf-6": "古生态学与古环境重建国际研讨会",
+      "conf-7": "地球生物学前沿论坛",
+      "conf-8": "古生物学新技术新方法专题研讨会",
     };
     return c[id] || "学术会议";
   };
 
   const getConferenceBranchId = (confId: string): string | null => {
+    // 使用 shared/constants.ts CONFERENCE_BRANCH_MAP 中的实际分会 ID
     const map: { [key: string]: string } = {
-      "conf-1": "4",  // 微体学分会
-      "conf-2": "6",  // 古植物学分会
-      "conf-3": "9",  // 古脊椎动物学分会
-      "conf-4": "9",  // 古脊椎动物学分会
-      "conf-5": "3"   // 孢粉学分会
+      "conf-1": "wtxfh",     // 微体学分会
+      "conf-2": "gzwxfh",    // 古植物学分会
+      "conf-3": "gjzdw",     // 古脊椎动物学分会
+      "conf-4": "gjzdw",     // 古脊椎动物学分会
+      "conf-5": "bfxfh",     // 孢粉学分会
+      "conf-6": "gst",       // 古生态专业分会
+      "conf-7": "dqswx",     // 地球生物学分会
+      "conf-8": "xjsxff",    // 新技术新方法专业委员会
+      "demo-conf": "gwjzdwxfh", // 古无脊椎动物学分会
     };
     return map[confId] || null;
   };

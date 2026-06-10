@@ -23,16 +23,17 @@ const BRANCH_MAP: Record<string, string> = {
   "xjsxff": "新技术新方法专业委员会",
 };
 
-// 会议 ID → 名称映射（与 Services.tsx 保持一致，共 8 场）
+// 会议 ID → 名称映射（与 Services.tsx 保持一致，共 9 场）
 const CONF_MAP: Record<string, { title: string; branchName: string; time: string; location: string; fee: number }> = {
-  "conf-gwjz-2026": { title: "2026年古无脊椎动物学学术年会", branchName: "古无脊椎动物学分会", time: "2026年09月12日 - 09月15日", location: "云南 · 昆明", fee: 1000 },
-  "conf-bfx-2026": { title: "第十二届全国孢粉学大会", branchName: "孢粉学分会", time: "2026年10月18日 - 10月21日", location: "湖北 · 武汉", fee: 900 },
-  "conf-wtx-2026": { title: "第十五届全国微体古生物学学术研讨会", branchName: "微体学分会", time: "2026年11月15日 - 11月18日", location: "江苏 · 南京", fee: 1200 },
-  "conf-gzw-2026": { title: "2026年度古植物学与环境演变论坛", branchName: "古植物学分会", time: "2026年12月05日 - 12月07日", location: "北京 · 中国科学院", fee: 800 },
-  "conf-gjzd-2027": { title: "热河生物群国际学术研讨会", branchName: "古脊椎动物学分会", time: "2027年03月20日 - 03月23日", location: "辽宁 · 朝阳", fee: 1500 },
-  "conf-dqsw-2026": { title: "地球生物学前沿论坛 2026", branchName: "地球生物学分会", time: "2026年08月22日 - 08月24日", location: "四川 · 成都", fee: 700 },
-  "conf-gst-2026": { title: "古生态与气候重建国际研讨会", branchName: "古生态专业分会", time: "2026年11月03日 - 11月05日", location: "浙江 · 杭州", fee: 850 },
-  "conf-swcj-2026": { title: "生物沉积学与碳循环学术交流会", branchName: "生物沉积学分会", time: "2026年12月20日 - 12月22日", location: "湖北 · 武汉", fee: 600 },
+  "demo-conf": { title: "【演示会议】古无脊椎动物学学术工作坊", branchName: "古无脊椎动物学分会", time: "2026年06月15日", location: "线上 · 腾讯会议", fee: 300 },
+  "conf-1": { title: "第十五届全国微体古生物学学术研讨会", branchName: "微体学分会", time: "2026年11月15日 - 11月18日", location: "江苏 · 南京", fee: 1200 },
+  "conf-2": { title: "2026年度古植物学与环境演变论坛", branchName: "古植物学分会", time: "2026年12月05日 - 12月07日", location: "北京 · 中国科学院", fee: 800 },
+  "conf-3": { title: "热河生物群国际学术研讨会", branchName: "古脊椎动物学分会", time: "2027年03月20日 - 03月23日", location: "辽宁 · 朝阳", fee: 1500 },
+  "conf-4": { title: "第十二届全国古脊椎动物学学术年会", branchName: "古脊椎动物学分会", time: "2026年09月18日 - 09月21日", location: "云南 · 昆明", fee: 1000 },
+  "conf-5": { title: "中国孢粉学会第十届全国学术大会", branchName: "孢粉学分会", time: "2026年10月22日 - 10月25日", location: "广东 · 广州", fee: 900 },
+  "conf-6": { title: "古生态学与古环境重建国际研讨会", branchName: "古生态专业分会", time: "2026年08月10日 - 08月13日", location: "四川 · 成都", fee: 1100 },
+  "conf-7": { title: "地球生物学前沿论坛", branchName: "地球生物学分会", time: "2026年07月05日 - 07月07日", location: "湖北 · 武汉", fee: 600 },
+  "conf-8": { title: "古生物学新技术新方法专题研讨会", branchName: "新技术新方法专业委员会", time: "2026年11月28日 - 11月30日", location: "湖北 · 武汉（中国地质大学）", fee: 500 },
 };
 
 export default function PersonalCenter() {

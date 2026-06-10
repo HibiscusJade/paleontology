@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useMembership } from "../contexts/MembershipContext";
 import { toast } from "sonner";
 import LoginJoinDialog from "../components/LoginJoinDialog";
+import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR } from "@shared/constants";
 
 export default function Services() {
   const [location, setLocation] = useLocation();
@@ -1771,12 +1772,14 @@ export default function Services() {
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#002B49]/8 text-[#002B49]">{c.branchName}</span>
                       {reg && (
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          reg.status === "active" ? "bg-green-50 text-green-700" :
-                          reg.status === "pending" ? "bg-amber-50 text-amber-700" :
-                          reg.status === "submitted" ? "bg-blue-50 text-blue-700" :
-                          "bg-red-50 text-red-600"
+                          CONFERENCE_STATUS_COLOR[reg.status] ||
+                          (reg.status === "active" ? "bg-green-50 text-green-700" :
+                           reg.status === "pending" ? "bg-amber-50 text-amber-700" :
+                           reg.status === "submitted" ? "bg-blue-50 text-blue-700" :
+                           "bg-slate-50 text-slate-600")
                         }`}>
-                          {reg.status === "active" ? "✓ 已缴费" : reg.status === "pending" ? "⏳ 审核中" : reg.status === "submitted" ? "✓ 已报名" : "✕ 已驳回"}
+                          {CONFERENCE_STATUS_LABEL[reg.status] ||
+                           (reg.status === "active" ? "✓ 已缴费" : reg.status === "pending" ? "⏳ 审核中" : reg.status === "submitted" ? "✓ 已报名" : reg.status)}
                         </span>
                       )}
                     </div>
@@ -1814,17 +1817,79 @@ export default function Services() {
                         缴纳注册费
                       </button>
                     )}
-                    {reg?.status === "pending" && (
+                    {/* 凭证初审中 → 可模拟审核通过 */}
+                    {(reg?.status === "voucher_submitted" || reg?.status === "pending") && (
                       <>
-                        <span className="text-amber-600 font-bold text-[10px] text-center">⏳ 凭证审核中</span>
+                        <span className="text-amber-600 font-bold text-[10px] text-center">⏳ 凭证初审中</span>
                         <button
-                          onClick={() => simApproveConference(c.id)}
+                          onClick={() => simApproveConferenceVoucher(c.id)}
                           className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-[10px] transition-colors"
                         >
-                          ✓ 模拟审核通过
+                          ✓ 模拟凭证通过
                         </button>
                       </>
                     )}
+                    {/* 凭证被驳回 → 可重新提交 */}
+                    {reg?.status === "voucher_rejected" && (
+                      <>
+                        <span className="text-red-600 font-bold text-[10px] text-center">✕ 凭证被驳回</span>
+                        <button
+                          onClick={() => { setConfPaymentTarget(c.id); setConfPaymentStep(1); setConfVoucher(null); setConfInvoice(null); }}
+                          className="bg-[#c8a96e] hover:bg-[#b8956a] text-white px-4 py-2 rounded font-bold text-xs transition-colors text-center"
+                        >
+                          重新提交凭证
+                        </button>
+                      </>
+                    )}
+                    {/* 待上传发票 → 填写信息 + 上传发票 + 模拟发票审核 */}
+                    {reg?.status === "invoice_pending" && (
+                      <>
+                        <button
+                          onClick={() => setEditingReg(c.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold text-xs transition-colors text-center"
+                        >
+                          填写参会信息
+                        </button>
+                        {reg.invoiceDeadline && (
+                          <span className="text-blue-600 font-bold text-[10px] text-center">发票截止：{reg.invoiceDeadline}</span>
+                        )}
+                      </>
+                    )}
+                    {/* 发票逾期 */}
+                    {reg?.status === "invoice_overdue" && (
+                      <span className="text-orange-600 font-bold text-[10px] text-center">⚠ 发票已逾期</span>
+                    )}
+                    {/* 发票终审中 */}
+                    {reg?.status === "invoice_submitted" && (
+                      <>
+                        <span className="text-amber-600 font-bold text-[10px] text-center">⏳ 发票终审中</span>
+                        <button
+                          onClick={() => simApproveConferenceInvoice(c.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-[10px] transition-colors"
+                        >
+                          ✓ 模拟终审通过
+                        </button>
+                      </>
+                    )}
+                    {/* 发票被驳回 → 可重新上传 */}
+                    {reg?.status === "invoice_rejected" && (
+                      <>
+                        <span className="text-red-600 font-bold text-[10px] text-center">✕ 发票被驳回</span>
+                        <button
+                          onClick={() => { setConfPaymentTarget(c.id); setConfPaymentStep(3); setConfVoucher(null); setConfInvoice(null); }}
+                          className="bg-[#c8a96e] hover:bg-[#b8956a] text-white px-4 py-2 rounded font-bold text-xs transition-colors text-center"
+                        >
+                          重新上传发票
+                        </button>
+                      </>
+                    )}
+                    {/* 已确认 */}
+                    {reg?.status === "confirmed" && (
+                      <span className="text-green-600 font-bold text-[10px] text-center flex items-center gap-1 justify-center">
+                        <span className="material-symbols-outlined text-sm">check_circle</span>报名完成
+                      </span>
+                    )}
+                    {/* 旧状态兼容 */}
                     {reg?.status === "active" && !reg.conferenceForm && (
                       <button
                         onClick={() => setEditingReg(c.id)}
