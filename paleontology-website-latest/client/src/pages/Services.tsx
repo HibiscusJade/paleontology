@@ -14,15 +14,28 @@ export default function Services() {
     boundBranches,
     conferenceRegs,
     applySocietyMembership,
+    submitMembershipVoucher,
+    submitMembershipInvoice,
     toggleBranchBinding,
     payConference,
+    submitConferenceVoucher,
+    submitConferenceInvoice,
     submitConferenceForm,
     deleteAbstract,
     uploadAbstract,
     simApproveSocietyMembership,
     simRejectSocietyMembership,
+    simApproveSocietyVoucher,
+    simRejectSocietyVoucher,
+    simApproveSocietyInvoice,
+    simRejectSocietyInvoice,
     simApproveConference,
     simRejectConference,
+    simApproveConferenceVoucher,
+    simRejectConferenceVoucher,
+    simApproveConferenceInvoice,
+    simRejectConferenceInvoice,
+    getMembershipFee,
   } = useMembership();
 
   // Parse URL query parameter for tab selection (e.g. /services?tab=member)
@@ -434,29 +447,40 @@ export default function Services() {
     }
 
     const isMemberActive = societyMembership?.status === "active";
-    const isMemberPending = societyMembership?.status === "pending";
-    const isMemberRejected = societyMembership?.status === "rejected";
+    const isMemberPending = societyMembership?.status === "voucher_submitted" || societyMembership?.status === "invoice_submitted" || societyMembership?.status === "pending";
+    const isMemberRejected = societyMembership?.status === "voucher_rejected" || societyMembership?.status === "invoice_rejected" || societyMembership?.status === "rejected";
+    const isMemberInvoicePending = societyMembership?.status === "invoice_pending";
+    const isMemberInvoiceOverdue = societyMembership?.status === "invoice_overdue";
     const isMemberExpired = societyMembership?.status === "expired";
-    const hasApplied = isMemberActive || isMemberPending || isMemberRejected || isMemberExpired;
+    const hasApplied = isMemberActive || isMemberPending || isMemberRejected || isMemberInvoicePending || isMemberInvoiceOverdue || isMemberExpired;
 
     // ── 缴费流程 ──────────────────────────────────────────────────────────────
     if (showFeePayment === "society") {
-      const SOCIETY_FEE = 200;
+      const SOCIETY_FEE = getMembershipFee("standard");
 
       const handleVoucherUpload = () => {
         setMemberVoucher("bank_transfer_receipt_2026.png");
         toast.success("缴费凭证银行回单上传成功！");
       };
       const handleInvoiceUpload = () => {
-        setMemberInvoice("invoice_request_details.pdf");
-        toast.success("发票抬头或往来证明上传成功！");
+        if (societyMembership?.status !== "invoice_pending" && societyMembership?.status !== "invoice_overdue") {
+          toast.error("请先等待凭证初审通过后再上传发票。");
+          return;
+        }
+        setMemberInvoice("invoice_electronic_2026.pdf");
+        submitMembershipInvoice(mockVoucherUrl);
+        setMemberPayStep(1);
+        setMemberVoucher(null);
+        setMemberInvoice(null);
+        setShowFeePayment(null);
       };
       const handlePaymentSubmit = () => {
         if (!memberVoucher) {
           toast.error("请先上传银行转账/汇款凭证截图或照片！");
           return;
         }
-        applySocietyMembership(mockVoucherUrl, mockVoucherUrl, SOCIETY_FEE);
+        // 两阶段：先提交凭证（阶段一）
+        submitMembershipVoucher(mockVoucherUrl, SOCIETY_FEE);
         setMemberPayStep(1);
         setMemberVoucher(null);
         setMemberInvoice(null);
@@ -482,7 +506,8 @@ export default function Services() {
             {[
               { num: 1, label: "确认账户与金额" },
               { num: 2, label: "银行汇款/转账" },
-              { num: 3, label: "上传凭证提交" }
+              { num: 3, label: "上传凭证提交" },
+              { num: 4, label: "上传发票" }
             ].map((step, idx) => (
               <div key={idx} className="flex flex-col items-center flex-1 bg-white px-2">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mb-2 transition-colors border-2 ${
@@ -585,10 +610,13 @@ export default function Services() {
           {/* STEP 3 */}
           {memberPayStep === 3 && (
             <div className="bg-white border border-[#E5E1DA] rounded-xl p-8 shadow-sm">
-              <h2 className="text-base font-bold text-[#002B49] mb-6 text-center">上传汇款回单凭证</h2>
+              <h2 className="text-base font-bold text-[#002B49] mb-6 text-center">阶段一：上传汇款回单凭证</h2>
               <div className="max-w-lg mx-auto space-y-6">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                  <strong>提示：</strong>先上传汇款凭证等待初审，初审通过后再上传电子发票（阶段二）。
+                </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">1. 汇款/转账凭证回单（必传）*</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-2">汇款/转账凭证回单（必传）*</label>
                   <div onClick={handleVoucherUpload} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${memberVoucher ? "border-green-500 bg-green-50/20" : "border-slate-300 hover:bg-slate-50 hover:border-[#002B49]"}`}>
                     {memberVoucher ? (
                       <div>
@@ -605,27 +633,52 @@ export default function Services() {
                     )}
                   </div>
                 </div>
+                <div className="flex justify-center space-x-4 pt-6 border-t border-slate-100">
+                  <button onClick={() => setMemberPayStep(2)} className="px-6 py-2 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs">上一步</button>
+                  <button onClick={handlePaymentSubmit} className="px-8 py-2 bg-[#002B49] hover:bg-[#001f35] text-white rounded-lg font-bold text-xs shadow-md">提交凭证，等待初审</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: 上传电子发票（凭证初审通过后） */}
+          {memberPayStep === 4 && (
+            <div className="bg-white border border-[#E5E1DA] rounded-xl p-8 shadow-sm">
+              <h2 className="text-base font-bold text-[#002B49] mb-6 text-center">上传电子发票</h2>
+              <div className="max-w-lg mx-auto space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-800">
+                  <p className="font-bold mb-1">凭证初审已通过</p>
+                  <p>请于 <strong>{societyMembership?.invoiceDeadline || "—"}</strong> 前上传电子发票（JPG/PNG/PDF ≤10MB）。</p>
+                  {societyMembership?.invoiceExtendedDeadline && (
+                    <p className="mt-1 text-blue-600">截止日已延期至：{societyMembership.invoiceExtendedDeadline}</p>
+                  )}
+                </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">2. 发票信息或开票往来公函（选传）</label>
-                  <div onClick={handleInvoiceUpload} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${memberInvoice ? "border-[#715a3e] bg-[#f5e0ba]/10" : "border-slate-300 hover:bg-slate-50 hover:border-[#002B49]"}`}>
+                  <label className="block text-xs font-bold text-slate-500 mb-2">电子发票（必传）*</label>
+                  <div onClick={() => {
+                    setMemberInvoice("invoice_electronic_2026.pdf");
+                    toast.success("电子发票上传成功！");
+                  }} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${memberInvoice ? "border-green-500 bg-green-50/20" : "border-slate-300 hover:bg-slate-50 hover:border-[#002B49]"}`}>
                     {memberInvoice ? (
                       <div>
-                        <span className="material-symbols-outlined text-4xl text-[#715a3e] mb-2">receipt</span>
-                        <p className="text-xs font-bold text-[#715a3e]">已上传：{memberInvoice}</p>
+                        <span className="material-symbols-outlined text-4xl text-green-600 mb-2">check_circle</span>
+                        <p className="text-xs font-bold text-green-700">已上传：{memberInvoice}</p>
                         <p className="text-[10px] text-slate-400 mt-1">点击可重新上传</p>
                       </div>
                     ) : (
                       <div>
                         <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">receipt_long</span>
-                        <p className="text-xs font-bold text-slate-600">点击上传发票抬头或汇款往来公函</p>
+                        <p className="text-xs font-bold text-[#002B49]">点击模拟上传电子发票</p>
                         <p className="text-[10px] text-slate-400 mt-1">支持 JPG/PNG/PDF 格式，单张 ≤ 10MB</p>
                       </div>
                     )}
                   </div>
                 </div>
                 <div className="flex justify-center space-x-4 pt-6 border-t border-slate-100">
-                  <button onClick={() => setMemberPayStep(2)} className="px-6 py-2 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs">上一步</button>
-                  <button onClick={handlePaymentSubmit} className="px-8 py-2 bg-[#002B49] hover:bg-[#001f35] text-white rounded-lg font-bold text-xs shadow-md">提交入会申请</button>
+                  <button onClick={() => setMemberPayStep(3)} className="px-6 py-2 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs">上一步</button>
+                  <button onClick={handleInvoiceUpload} disabled={!memberInvoice} className="px-8 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg font-bold text-xs shadow-md">
+                    提交发票，等待终审
+                  </button>
                 </div>
               </div>
             </div>
@@ -654,11 +707,20 @@ export default function Services() {
                   {isMemberActive && (
                     <span className="inline-block bg-green-100 text-green-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">✓ 学会正式会员</span>
                   )}
-                  {isMemberPending && (
-                    <span className="inline-block bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">⏳ 会费审核中</span>
+                  {societyMembership?.status === "voucher_submitted" && (
+                    <span className="inline-block bg-yellow-100 text-yellow-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">⏳ 凭证初审中</span>
+                  )}
+                  {societyMembership?.status === "invoice_pending" && (
+                    <span className="inline-block bg-blue-100 text-blue-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">待上传发票</span>
+                  )}
+                  {societyMembership?.status === "invoice_overdue" && (
+                    <span className="inline-block bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">发票逾期</span>
+                  )}
+                  {societyMembership?.status === "invoice_submitted" && (
+                    <span className="inline-block bg-yellow-100 text-yellow-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">⏳ 发票终审中</span>
                   )}
                   {isMemberRejected && (
-                    <span className="inline-block bg-red-100 text-red-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">✗ 凭证被驳回</span>
+                    <span className="inline-block bg-red-100 text-red-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">✗ 凭证/发票被驳回</span>
                   )}
                   {isMemberExpired && (
                     <span className="inline-block bg-slate-100 text-slate-600 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">会员已过期</span>
@@ -698,37 +760,87 @@ export default function Services() {
                     onClick={() => { setShowFeePayment("society"); setMemberPayStep(1); }}
                     className="bg-[#002B49] hover:bg-[#001f35] text-white px-6 py-2 rounded font-bold text-xs shadow-md w-full"
                   >
-                    立即申请入会（¥200/年）
+                    立即申请入会（¥{getMembershipFee("standard")}/年）
                   </button>
                 </div>
               )}
 
-              {isMemberPending && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800 space-y-3">
-                  <p className="font-bold mb-1">⏳ 会费凭证审核中</p>
-                  <p className="text-amber-700 leading-relaxed">您的汇款凭证已提交，请等待学会财务人工审核（通常 1-3 个工作日）。审核通过后会员资格即时生效。</p>
-                  <p className="text-amber-600 font-bold">缴费金额：¥ {societyMembership?.amount} 元</p>
-                  <div className="border-t border-amber-200 pt-3">
-                    <p className="text-amber-400 text-[10px] mb-2">[ 演示模式 ] 点击下方按钮可模拟学会财务审核通过</p>
-                    <button
-                      onClick={() => simApproveSocietyMembership()}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">check_circle</span> 模拟审核通过
-                    </button>
+              {/* 凭证初审中 */}
+              {societyMembership?.status === "voucher_submitted" && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800 space-y-3">
+                  <p className="font-bold mb-1">⏳ 凭证初审中</p>
+                  <p className="text-yellow-700 leading-relaxed">您的汇款凭证已提交，请等待学会财务人工审核（通常 1-3 个工作日）。</p>
+                  <div className="border-t border-yellow-200 pt-3">
+                    <p className="text-yellow-400 text-[10px] mb-2">[ 演示模式 ] 模拟财务审核</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => simApproveSocietyVoucher()} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-[13px]">check_circle</span> 初审通过
+                      </button>
+                      <button onClick={() => simRejectSocietyVoucher("凭证模糊不清晰，无法辨认汇款信息。")} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-[13px]">cancel</span> 初审驳回
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
+              {/* 待上传发票 + 可绑定分会 */}
+              {isMemberInvoicePending && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-800 space-y-3">
+                  <p className="font-bold mb-1">凭证初审已通过！</p>
+                  <p className="text-blue-700 leading-relaxed">请于 <strong>{societyMembership?.invoiceDeadline}</strong> 前上传电子发票。您现在可以绑定专业分会。</p>
+                  <button
+                    onClick={() => { setShowFeePayment("society"); setMemberPayStep(4); }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-xs"
+                  >
+                    上传电子发票
+                  </button>
+                </div>
+              )}
+
+              {/* 发票逾期 */}
+              {isMemberInvoiceOverdue && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-xs text-orange-800 space-y-3">
+                  <p className="font-bold mb-1">⚠ 发票上传已逾期</p>
+                  <p className="text-orange-700 leading-relaxed">发票上传截止日 {societyMembership?.invoiceDeadline} 已过，会员资格暂时锁定。请尽快上传发票。</p>
+                  <button
+                    onClick={() => { setShowFeePayment("society"); setMemberPayStep(4); }}
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded font-bold text-xs"
+                  >
+                    立即上传发票
+                  </button>
+                </div>
+              )}
+
+              {/* 发票终审中 */}
+              {societyMembership?.status === "invoice_submitted" && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800 space-y-3">
+                  <p className="font-bold mb-1">⏳ 发票终审中</p>
+                  <p className="text-yellow-700 leading-relaxed">电子发票已提交，财务人员正在进行终审。终审通过后会员资格正式生效。</p>
+                  <div className="border-t border-yellow-200 pt-3">
+                    <p className="text-yellow-400 text-[10px] mb-2">[ 演示模式 ] 模拟财务终审</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => simApproveSocietyInvoice()} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                        终审通过
+                      </button>
+                      <button onClick={() => simRejectSocietyInvoice("发票信息与凭证金额不符")} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                        终审驳回
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 驳回（凭证或发票） */}
               {isMemberRejected && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-xs text-red-800 space-y-3">
-                  <p className="font-bold">✗ 凭证审核被驳回</p>
-                  <p className="text-red-700 leading-relaxed">驳回原因：{societyMembership?.rejectReason || "凭证不清晰，请重新上传"}</p>
+                  <p className="font-bold">✗ {societyMembership?.status === "invoice_rejected" ? "发票终审被驳回" : "凭证初审被驳回"}</p>
+                  <p className="text-red-700 leading-relaxed">驳回原因：{societyMembership?.voucherRejectReason || societyMembership?.invoiceRejectReason || societyMembership?.rejectReason || "凭证不清晰，请重新上传"}</p>
                   <button
-                    onClick={() => { setShowFeePayment("society"); setMemberPayStep(3); }}
+                    onClick={() => { setShowFeePayment("society"); setMemberPayStep(societyMembership?.status === "invoice_rejected" ? 4 : 3); }}
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold text-xs w-full"
                   >
-                    重新上传凭证
+                    {societyMembership?.status === "invoice_rejected" ? "重新上传发票" : "重新上传凭证"}
                   </button>
                 </div>
               )}
@@ -738,7 +850,7 @@ export default function Services() {
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <p className="font-bold text-green-700 mb-1">✓ 会员资格有效</p>
                     <p className="text-green-600">有效期至：<strong>{societyMembership?.expiryDate}</strong></p>
-                    <p className="text-green-600 mt-1">缴费金额：¥ {societyMembership?.amount} 元</p>
+                    <p className="text-green-600 mt-1">缴费金额：¥ {getMembershipFee("standard")} 元</p>
                   </div>
                   <button
                     onClick={() => { setShowFeePayment("society"); setMemberPayStep(1); }}
@@ -759,7 +871,7 @@ export default function Services() {
                     onClick={() => { setShowFeePayment("society"); setMemberPayStep(1); }}
                     className="bg-[#002B49] hover:bg-[#001f35] text-white px-4 py-2 rounded font-bold text-xs w-full"
                   >
-                    立即续费（¥200/年）
+                    立即续费（¥{getMembershipFee("standard")}/年）
                   </button>
                 </div>
               )}
@@ -1256,7 +1368,7 @@ export default function Services() {
               <div className="flex gap-3">
                 {/* UNPAID */}
                 {reg.status === "unpaid" && (
-                  <button 
+                  <button
                     onClick={() => {
                       if (!isLoggedIn) {
                         toast.error("请先登录系统再报名会议。");
@@ -1281,45 +1393,141 @@ export default function Services() {
                   </button>
                 )}
 
-                {/* PENDING PAYMENT */}
-                {reg.status === "pending" && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-2 w-full">
-                    <p className="font-bold">⏳ 会议费凭证审核中</p>
-                    <p className="text-amber-600">凭证已提交，待财务审核通过后可填写参会信息。</p>
-                    <div className="border-t border-amber-200 pt-2">
-                      <p className="text-amber-400 text-[10px] mb-1.5">[ 演示模式 ] 点击下方按钮可模拟财务审核通过</p>
-                      <button
-                        onClick={() => simApproveConference(conf!.id)}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-[13px]">check_circle</span> 模拟审核通过
-                      </button>
+                {/* VOUCHER SUBMITTED — 凭证初审中 */}
+                {(reg.status === "voucher_submitted" || reg.status === "pending") && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 space-y-2 w-full">
+                    <p className="font-bold">⏳ 凭证初审中</p>
+                    <p className="text-yellow-600">汇款凭证已提交，财务初审中（通常 1-3 个工作日）。</p>
+                    <div className="border-t border-yellow-200 pt-2">
+                      <p className="text-yellow-400 text-[10px] mb-1.5">[ 演示模式 ] 模拟财务初审</p>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => simApproveConferenceVoucher(conf!.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                          初审通过
+                        </button>
+                        <button onClick={() => simRejectConferenceVoucher(conf!.id, "凭证模糊，无法辨认汇款信息")} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                          初审驳回
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* APPROVED BUT UNFILLED FORM */}
-                {reg.status === "approved_unfilled" && (
-                  <button 
-                    onClick={() => setEditingReg(conf!.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold text-xs shadow-md flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-sm">edit_note</span> 填写参会与报告信息
-                  </button>
+                {/* VOUCHER REJECTED — 凭证被驳回 */}
+                {reg.status === "voucher_rejected" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-800 space-y-2 w-full">
+                    <p className="font-bold">✗ 凭证初审被驳回</p>
+                    {reg.voucherRejectReason && <p className="text-red-600">原因：{reg.voucherRejectReason}</p>}
+                    <button onClick={() => setConfPaymentTarget(conf!.id)} className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded font-bold text-xs">
+                      重新上传凭证
+                    </button>
+                  </div>
                 )}
 
-                {/* FORM SUBMITTED */}
-                {reg.status === "submitted" && (
+                {/* INVOICE PENDING — 待上传发票（可填参会信息） */}
+                {reg.status === "invoice_pending" && (
+                  <div className="space-y-2 w-full">
+                    {/* 倒计时 */}
+                    {(() => {
+                      const deadline = reg.invoiceExtendedDeadline || reg.invoiceDeadline;
+                      if (deadline) {
+                        const daysLeft = Math.ceil((new Date(deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                        const isUrgent = daysLeft <= 3;
+                        return (
+                          <div className={`rounded-lg p-2 text-xs font-bold text-center ${isUrgent ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
+                            <span className="material-symbols-outlined text-[13px] align-middle mr-1">schedule</span>
+                            {daysLeft > 0 ? `发票上传截止：${deadline}（剩余 ${daysLeft} 天）` : `发票上传已逾期！截止日：${deadline}`}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditingReg(conf!.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-sm">edit_note</span> 填写参会信息
+                      </button>
+                      <button onClick={() => {
+                        setConfInvoice("invoice_electronic_conf.pdf");
+                        submitConferenceInvoice(conf!.id, mockVoucherUrl);
+                      }} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-sm">receipt_long</span> 上传发票
+                      </button>
+                    </div>
+                    {/* 演示按钮 */}
+                    <div className="border-t border-slate-100 pt-1.5">
+                      <p className="text-slate-400 text-[10px] mb-1">[ 演示 ] 模拟发票终审</p>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => simApproveConferenceInvoice(conf!.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-bold text-xs">
+                          终审通过
+                        </button>
+                        <button onClick={() => simRejectConferenceInvoice(conf!.id, "发票信息与汇款人不符")} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded font-bold text-xs">
+                          终审驳回
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INVOICE OVERDUE — 发票逾期 */}
+                {reg.status === "invoice_overdue" && (
+                  <div className="space-y-2 w-full">
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800">
+                      <p className="font-bold">⚠ 发票上传已逾期</p>
+                      <p className="text-orange-700 mt-1">截止日：{reg.invoiceDeadline || "—"}。请尽快上传发票完成报名确认。</p>
+                    </div>
+                    <button onClick={() => {
+                      setConfInvoice("invoice_electronic_conf.pdf");
+                      submitConferenceInvoice(conf!.id, mockVoucherUrl);
+                    }} className="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-bold text-xs">
+                      立即上传发票
+                    </button>
+                  </div>
+                )}
+
+                {/* INVOICE SUBMITTED — 发票终审中 */}
+                {reg.status === "invoice_submitted" && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 space-y-2 w-full">
+                    <p className="font-bold">⏳ 发票终审中</p>
+                    <p className="text-yellow-600">电子发票已提交，财务终审中。已填写的参会信息已锁定。</p>
+                    <div className="border-t border-yellow-200 pt-2">
+                      <p className="text-yellow-400 text-[10px] mb-1.5">[ 演示模式 ] 模拟财务终审</p>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => simApproveConferenceInvoice(conf!.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                          终审通过
+                        </button>
+                        <button onClick={() => simRejectConferenceInvoice(conf!.id, "发票信息不一致")} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1">
+                          终审驳回
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INVOICE REJECTED — 发票被驳回 */}
+                {reg.status === "invoice_rejected" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-800 space-y-2 w-full">
+                    <p className="font-bold">✗ 发票终审被驳回</p>
+                    {reg.invoiceRejectReason && <p className="text-red-600">原因：{reg.invoiceRejectReason}</p>}
+                    <button onClick={() => {
+                      setConfInvoice("invoice_electronic_conf_v2.pdf");
+                      submitConferenceInvoice(conf!.id, mockVoucherUrl);
+                    }} className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded font-bold text-xs">
+                      重新上传发票
+                    </button>
+                  </div>
+                )}
+
+                {/* CONFIRMED — 报名确认 */}
+                {(reg.status === "confirmed" || reg.status === "submitted" || reg.status === "approved_unfilled" || reg.status === "approved_invoice") && (
                   <div className="flex items-center gap-3">
                     <span className="text-green-600 font-bold text-xs flex items-center gap-0.5">
                       <span className="material-symbols-outlined text-sm">check_circle</span>
-                      已成功报名并提交参会信息
+                      {reg.status === "confirmed" ? "✓ 报名已确认" : "已成功报名"}
                     </span>
-                    <button 
+                    <button
                       onClick={() => setEditingReg(conf!.id)}
                       className="text-xs text-[#002B49] font-bold hover:underline"
                     >
-                      修改参会信息
+                      {reg.status === "confirmed" ? "查看参会信息" : "修改参会信息"}
                     </button>
                   </div>
                 )}
@@ -1367,10 +1575,10 @@ export default function Services() {
                       详细通知 <span className="material-symbols-outlined text-sm">chevron_right</span>
                     </button>
 
-                    {/* STATUS BUTTONS */}
+                    {/* STATUS BUTTONS — 8种状态 */}
                     <div>
                       {reg.status === "unpaid" && (
-                        <button 
+                        <button
                           onClick={() => {
                             if (!isLoggedIn) {
                               toast.error("请先登录系统再报名会议。");
@@ -1386,24 +1594,45 @@ export default function Services() {
                         </button>
                       )}
 
-                      {reg.status === "pending" && (
-                        <span className="text-amber-600 font-bold flex items-center gap-0.5 text-[10px]">
-                          <span className="material-symbols-outlined text-sm animate-spin">sync</span> 凭证审核中
+                      {(reg.status === "voucher_submitted" || reg.status === "pending") && (
+                        <span className="text-yellow-600 font-bold flex items-center gap-0.5 text-[10px]">
+                          <span className="material-symbols-outlined text-sm">hourglass_top</span> 凭证初审中
                         </span>
                       )}
 
-                      {reg.status === "approved_unfilled" && (
-                        <button 
-                          onClick={() => setEditingReg(c.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded font-bold text-[10px] shadow-sm"
-                        >
-                          填写参会报告
-                        </button>
+                      {reg.status === "voucher_rejected" && (
+                        <span className="text-red-600 font-bold flex items-center gap-0.5 text-[10px]">
+                          <span className="material-symbols-outlined text-sm">error</span> 凭证被驳回
+                        </span>
                       )}
 
-                      {reg.status === "submitted" && (
+                      {reg.status === "invoice_pending" && (
+                        <span className="text-blue-600 font-bold flex items-center gap-0.5 text-[10px]">
+                          <span className="material-symbols-outlined text-sm">receipt_long</span> 待上传发票
+                        </span>
+                      )}
+
+                      {reg.status === "invoice_overdue" && (
+                        <span className="text-orange-600 font-bold flex items-center gap-0.5 text-[10px]">
+                          <span className="material-symbols-outlined text-sm">warning</span> 发票逾期
+                        </span>
+                      )}
+
+                      {reg.status === "invoice_submitted" && (
+                        <span className="text-yellow-600 font-bold flex items-center gap-0.5 text-[10px]">
+                          <span className="material-symbols-outlined text-sm">hourglass_top</span> 发票终审中
+                        </span>
+                      )}
+
+                      {reg.status === "invoice_rejected" && (
+                        <span className="text-red-600 font-bold flex items-center gap-0.5 text-[10px]">
+                          <span className="material-symbols-outlined text-sm">error</span> 发票被驳回
+                        </span>
+                      )}
+
+                      {(reg.status === "confirmed" || reg.status === "submitted" || reg.status === "approved_unfilled" || reg.status === "approved_invoice") && (
                         <span className="text-green-600 font-bold flex items-center gap-0.5 text-[10px]">
-                          <span className="material-symbols-outlined text-sm">check_circle</span> 报名已完成
+                          <span className="material-symbols-outlined text-sm">check_circle</span> {reg.status === "confirmed" ? "已确认" : "已报名"}
                         </span>
                       )}
                     </div>
@@ -1671,7 +1900,7 @@ export default function Services() {
                     disabled={!confVoucher}
                     onClick={() => {
                       if (confVoucher) {
-                        payConference(confPaymentTarget, confVoucher, confInvoice || "", c.fee, c.title);
+                        payConference(confPaymentTarget, confVoucher, confInvoice || "", c.fee);
                         setConfPaymentTarget(null);
                       }
                     }}
@@ -1717,7 +1946,7 @@ export default function Services() {
                   </div>
                   <button
                     onClick={() => {
-                      submitConferenceForm(editingReg, { reportType: "口头报告", accommodation: "单间" });
+                      submitConferenceForm(editingReg, { name: currentUser?.name || "", gender: currentUser?.gender || "男", unit: currentUser?.unit || "", role: currentUser?.role || "教师", accommodation: "单间", session: "古脊椎动物演化与环境专场", presentationType: "口头报告", reportTitle: undefined, abstractFileName: undefined });
                       setEditingReg(null);
                     }}
                     className="w-full mt-4 bg-[#002B49] hover:bg-[#003d6b] text-white py-3 rounded-lg font-bold text-sm transition-colors"

@@ -107,6 +107,7 @@ export default function PersonalCenter() {
 
   // 缴费记录（学会会费历史 + 会议费）
   // 当 history 为空但 status 已有记录时，直接构建一条显示
+  const MEMBER_FEE = (() => { try { const stored = localStorage.getItem("paleo_membership_fee_config"); if (stored) { const c = JSON.parse(stored); return c.standard || 200; } } catch {} return 200; })();
   const rawHistory = societyMembership?.history || [];
   const societyPayHistory = rawHistory.length > 0
     ? rawHistory
@@ -115,11 +116,11 @@ export default function PersonalCenter() {
           id: "auto",
           type: "society_fee" as const,
           targetName: "中国古生物学会会员费",
-          amount: societyMembership.amount || 200,
+          amount: societyMembership.amount || MEMBER_FEE,
           voucherUrl: "",
           invoiceUrl: "",
           submitTime: societyMembership.expiryDate ? "-" : "-",
-          status: societyMembership.status === "active" ? "approved" as const : societyMembership.status === "pending" ? "pending" as const : "rejected" as const
+          status: societyMembership.status === "active" ? "approved" as const : societyMembership.status === "voucher_submitted" || societyMembership.status === "pending" ? "voucher_submitted" as const : societyMembership.status === "invoice_submitted" ? "invoice_submitted" as const : "rejected" as const
         }]
       : [];
   const confPayHistory = Object.entries(conferenceRegs || {})
@@ -136,7 +137,13 @@ export default function PersonalCenter() {
   const getMemberStatusBadge = (status: string) => {
     switch (status) {
       case "active": return "bg-green-50 text-green-700 border border-green-200";
-      case "pending": return "bg-amber-50 text-amber-700 border border-amber-200";
+      case "voucher_submitted":
+      case "pending": return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+      case "voucher_rejected": return "bg-red-50 text-red-700 border border-red-200";
+      case "invoice_pending": return "bg-blue-50 text-blue-700 border border-blue-200";
+      case "invoice_overdue": return "bg-orange-50 text-orange-700 border border-orange-200";
+      case "invoice_submitted": return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+      case "invoice_rejected":
       case "rejected": return "bg-red-50 text-red-700 border border-red-200";
       case "expired": return "bg-gray-50 text-gray-600 border border-gray-200";
       default: return "bg-slate-50 text-slate-600 border border-slate-200";
@@ -147,31 +154,43 @@ export default function PersonalCenter() {
     switch (status) {
       case "active": return "✓ 会员资格有效";
       case "approved": return "✓ 已审核通过";
-      case "pending": return "⏳ 凭证审核中";
-      case "rejected": return "✕ 已驳回";
+      case "voucher_submitted":
+      case "pending": return "⏳ 凭证初审中";
+      case "voucher_rejected": return "✕ 凭证被驳回";
+      case "invoice_pending": return "待上传发票";
+      case "invoice_overdue": return "⚠ 发票逾期";
+      case "invoice_submitted": return "⏳ 发票终审中";
+      case "invoice_rejected":
+      case "rejected": return "✕ 发票被驳回";
       case "expired": return "已过期";
       default: return "未缴费";
     }
   };
 
   const getMemberStatusBadgeByRecord = (record: any) => {
-    // 如果学会会员资格已生效，优先显示 active
     if (societyMembership?.status === "active") return "bg-green-50 text-green-700 border border-green-200";
-    return getMemberStatusBadge(record.status);
+    return getMemberStatusBadge(societyMembership?.status || record.status);
   };
 
   const getMemberStatusLabelByRecord = (record: any) => {
     if (societyMembership?.status === "active") return "✓ 会员资格有效";
-    return getMemberStatusLabel(record.status);
+    return getMemberStatusLabel(societyMembership?.status || record.status);
   };
 
   const getConfStatusBadge = (status: string) => {
     switch (status) {
+      case "confirmed":
+      case "submitted":
       case "approved_unfilled":
       case "approved_invoice":
-      case "active":
-      case "submitted": return "bg-green-50 text-green-700 border border-green-200";
-      case "pending": return "bg-amber-50 text-amber-700 border border-amber-200";
+      case "active": return "bg-green-50 text-green-700 border border-green-200";
+      case "voucher_submitted":
+      case "pending": return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+      case "voucher_rejected": return "bg-red-50 text-red-700 border border-red-200";
+      case "invoice_pending": return "bg-blue-50 text-blue-700 border border-blue-200";
+      case "invoice_overdue": return "bg-orange-50 text-orange-700 border border-orange-200";
+      case "invoice_submitted": return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+      case "invoice_rejected":
       case "rejected": return "bg-red-50 text-red-700 border border-red-200";
       default: return "bg-slate-50 text-slate-600 border border-slate-200";
     }
@@ -179,12 +198,19 @@ export default function PersonalCenter() {
 
   const getConfStatusLabel = (status: string) => {
     switch (status) {
-      case "pending": return "⏳ 凭证审核中";
+      case "voucher_submitted":
+      case "pending": return "⏳ 凭证初审中";
+      case "voucher_rejected": return "✕ 凭证被驳回";
+      case "invoice_pending": return "待上传发票";
+      case "invoice_overdue": return "⚠ 发票逾期";
+      case "invoice_submitted": return "⏳ 发票终审中";
+      case "invoice_rejected":
+      case "rejected": return "✕ 发票被驳回";
+      case "confirmed": return "✓ 已确认";
       case "approved_unfilled":
       case "approved_invoice":
-      case "active": return "✓ 已缴费（待填参会信息）";
+      case "active": return "✓ 已缴费";
       case "submitted": return "✓ 已报名";
-      case "rejected": return "✕ 已驳回";
       default: return status;
     }
   };
@@ -245,9 +271,19 @@ export default function PersonalCenter() {
                           ✓ 学会正式会员
                         </span>
                       )}
-                      {societyMembership?.status === "pending" && (
-                        <span className="inline-block mt-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          ⏳ 会费审核中
+                      {(societyMembership?.status === "voucher_submitted" || societyMembership?.status === "pending") && (
+                        <span className="inline-block mt-1 bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          ⏳ 凭证初审中
+                        </span>
+                      )}
+                      {societyMembership?.status === "invoice_pending" && (
+                        <span className="inline-block mt-1 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          待上传发票
+                        </span>
+                      )}
+                      {societyMembership?.status === "invoice_submitted" && (
+                        <span className="inline-block mt-1 bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          ⏳ 发票终审中
                         </span>
                       )}
                     </div>
@@ -484,8 +520,30 @@ export default function PersonalCenter() {
                         )}
                       </div>
 
+                      {/* 发票截止日倒计时 */}
+                      {conf.status === "invoice_pending" && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-xs text-blue-700">
+                          {(() => {
+                            const deadline = conf.invoiceDeadline;
+                            if (deadline) {
+                              const daysLeft = Math.ceil((new Date(deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                              return daysLeft > 0
+                                ? <span>发票上传截止：{deadline}（剩余 {daysLeft} 天）</span>
+                                : <span className="text-red-600 font-bold">发票已逾期！</span>;
+                            }
+                            return <span>请完成发票上传</span>;
+                          })()}
+                        </div>
+                      )}
+
+                      {conf.status === "invoice_overdue" && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-xs text-orange-700 font-bold">
+                          ⚠ 发票上传已逾期
+                        </div>
+                      )}
+
                       {/* 参会信息（已通过后显示） */}
-                      {(conf.status === "submitted" || conf.status === "approved_unfilled") && conf.name && (
+                      {(conf.status === "confirmed" || conf.status === "invoice_pending" || conf.status === "invoice_overdue" || conf.status === "invoice_submitted" || conf.status === "submitted" || conf.status === "approved_unfilled") && conf.name && (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs space-y-1">
                           <p className="font-bold text-green-700 mb-1">参会信息</p>
                           {conf.name && <p className="text-green-700">姓名：{conf.name}</p>}
@@ -497,14 +555,29 @@ export default function PersonalCenter() {
                       )}
 
                       {/* 驳回原因 */}
-                      {conf.status === "rejected" && conf.rejectReason && (
+                      {(conf.status === "voucher_rejected" || conf.status === "rejected") && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs">
-                          <p className="font-bold text-red-700">驳回原因：</p>
-                          <p className="text-red-600 mt-1">{conf.rejectReason}</p>
+                          <p className="font-bold text-red-700">凭证驳回原因：</p>
+                          <p className="text-red-600 mt-1">{conf.voucherRejectReason || conf.rejectReason || "—"}</p>
+                        </div>
+                      )}
+                      {conf.status === "invoice_rejected" && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs">
+                          <p className="font-bold text-red-700">发票驳回原因：</p>
+                          <p className="text-red-600 mt-1">{conf.invoiceRejectReason || "—"}</p>
                         </div>
                       )}
 
                       {/* 操作按钮 */}
+                      {conf.status === "invoice_pending" && (
+                        <button
+                          onClick={() => setLocation("/services?tab=conference")}
+                          className="w-full bg-[#002B49] hover:bg-[#001f35] text-white px-4 py-2 rounded font-bold text-xs flex items-center justify-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                          前往填写信息 / 上传发票
+                        </button>
+                      )}
                       {conf.status === "approved_unfilled" && (
                         <button
                           onClick={() => setLocation("/services?tab=conference")}
