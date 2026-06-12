@@ -402,7 +402,7 @@ export default function PersonalCenter() {
 
                 {!isEditing && !showPasswordChange && (
                   <div className="pt-6 border-t border-slate-100">
-                    <Button onClick={() => setShowPasswordChange(true)} className="border border-[#002B49] text-[#002B49] hover:bg-slate-50">
+                    <Button variant="outline" onClick={() => setShowPasswordChange(true)} className="border-[#002B49] text-[#002B49] hover:bg-slate-50">
                       <span className="material-symbols-outlined text-sm mr-1">lock</span> 修改密码
                     </Button>
                   </div>
