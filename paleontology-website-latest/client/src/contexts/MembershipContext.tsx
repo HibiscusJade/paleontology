@@ -5,7 +5,10 @@ import {
   type MembershipStatus,
   CONFERENCE_STATUS,
   MEMBERSHIP_STATUS,
+  USER_TYPE,
+  type UserType,
   getMembershipFee as getConfiguredMembershipFee,
+  getConferenceFee as getConfiguredConferenceFee,
 } from "@shared/constants";
 
 // ============================================================================
@@ -107,6 +110,11 @@ interface MembershipContextType {
   notifications: SystemNotification[];
   allUsers: User[];
 
+  // ── 双路径选择（新增） ──
+  userType: UserType;
+  membershipChoiceMade: boolean;
+  chooseMembershipPath: (path: "member" | "non_member") => void;
+
   // Auth actions
   register: (user: User, password: string) => boolean;
   login: (email: string, password: string) => boolean;
@@ -170,6 +178,7 @@ interface MembershipContextType {
 
   // ── 配置读取 ──
   getMembershipFee: (memberType?: string) => number;
+  getConferenceFee: (confId: string) => number;
 
   // General Helpers
   markNotificationRead: (id: string) => void;
@@ -243,6 +252,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [conferenceRegs, setConferenceRegs] = useState<{ [confId: string]: ConferenceReg }>({});
   const [notifications, setNotifications] = useState<SystemNotification[]>(DEFAULT_NOTIFICATIONS);
   const [allUsers, setAllUsers] = useState<User[]>(MOCK_USER_DB.map(({ password, ...u }) => u));
+  const [userType, setUserType] = useState<UserType>("regular");
+  const [membershipChoiceMade, setMembershipChoiceMade] = useState(false);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -287,6 +298,13 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const storedNotifs = localStorage.getItem(notifsKey);
     setNotifications(storedNotifs ? JSON.parse(storedNotifs) : DEFAULT_NOTIFICATIONS);
+
+    const typeKey = `paleo_user_type_${email}`;
+    const storedType = localStorage.getItem(typeKey);
+    setUserType((storedType as UserType) || "regular");
+
+    const choiceKey = `paleo_choice_made_${email}`;
+    setMembershipChoiceMade(localStorage.getItem(choiceKey) === "true");
   };
 
   const saveState = (key: string, data: any) => {
@@ -493,9 +511,12 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    const canBind = societyMembership.status === "active" || societyMembership.status === "invoice_pending" || societyMembership.status === "invoice_submitted";
-    if (!canBind) {
-      toast.error("您必须是有效的学会会员才能绑定分会，请先缴纳学会会员费并等待审核通过。");
+    if (userType === "regular") {
+      toast.error("请先选择您的参与方式（会员/非会员）后再绑定分会。");
+      return;
+    }
+    if (userType === "member" && societyMembership.status !== "active" && societyMembership.status !== "invoice_pending" && societyMembership.status !== "invoice_submitted") {
+      toast.error("您尚未完成会员缴费验证，请先前往会员服务完成入会流程。");
       return;
     }
 
@@ -539,9 +560,12 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const submitConferenceVoucher = (confId: string, voucherUrl: string, amount: number) => {
     if (!currentUser) return;
 
-    const canAttend = societyMembership.status === "active" || societyMembership.status === "invoice_pending" || societyMembership.status === "invoice_submitted";
-    if (!canAttend) {
-      toast.error("您必须是有效的学会会员才能参加会议，请先缴纳学会会员费。");
+    if (userType === "regular") {
+      toast.error("请先选择您的参与方式（会员/非会员）后再报名会议。");
+      return;
+    }
+    if (userType === "member" && societyMembership.status !== "active" && societyMembership.status !== "invoice_pending" && societyMembership.status !== "invoice_submitted") {
+      toast.error("您尚未完成会员缴费验证，请先前往会员服务完成入会流程后再报名会议。");
       return;
     }
 
@@ -574,7 +598,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     addNotification({
       title: "会议注册费凭证已提交",
-      content: `您已成功提交【${confTitle}】的会议注册费凭证（金额：¥${amount}）。凭证初审通过后，您即可填写参会信息并上传发票。`,
+      content: `您已成功提交【${confTitle}】的会议注册费凭证（金额：¥${getConferenceFeeAction(confId)}）。凭证初审通过后，您即可填写参会信息并上传发票。`,
       type: "info"
     });
 
@@ -1172,10 +1196,39 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const chooseMembershipPath = (path: "member" | "non_member") => {
+    if (!currentUser) { toast.error("请先登录系统。"); return; }
+
+    setUserType(path);
+    setMembershipChoiceMade(true);
+
+    const email = currentUser.email;
+    localStorage.setItem(`paleo_user_type_${email}`, path);
+    localStorage.setItem(`paleo_choice_made_${email}`, "true");
+
+    if (path === "member") {
+      addNotification({
+        title: "已选择：成为正式会员",
+        content: "请前往会员服务页面完成会费缴纳和身份验证，通过后即可享受会员价参会。",
+        type: "info"
+      });
+    } else {
+      addNotification({
+        title: "已选择：作为非会员使用",
+        content: "您可以直接绑定分会并注册会议，会议费将按非会员标准收取。您可随时在会员服务中升级为正式会员。",
+        type: "info"
+      });
+    }
+  };
+
   // ── 配置读取 ──
 
   const getMembershipFee = (memberType?: string): number => {
     return getConfiguredMembershipFee(memberType);
+  };
+
+  const getConferenceFeeAction = (confId: string): number => {
+    return getConfiguredConferenceFee(confId, userType);
   };
 
   // ==========================================
@@ -1327,6 +1380,10 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       handleMembershipExpiry,
       handleMembershipRenewal,
       getMembershipFee,
+      getConferenceFee: getConferenceFeeAction,
+      userType,
+      membershipChoiceMade,
+      chooseMembershipPath,
       markNotificationRead,
       markAllNotificationsRead,
       clearNotifications
