@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useMembership } from "../contexts/MembershipContext";
 import LoginJoinDialog from "./LoginJoinDialog";
+import MembershipChoiceDialog from "./MembershipChoiceDialog";
 
 interface PartyLayoutProps {
   children: React.ReactNode;
@@ -12,11 +13,21 @@ interface PartyLayoutProps {
 
 export default function PartyLayout({ children, currentPageTitle, breadcrumbs }: PartyLayoutProps) {
   const [location, setLocation] = useLocation();
-  const { currentUser, isLoggedIn, logout, notifications, markNotificationRead, markAllNotificationsRead, societyMembership } = useMembership();
+  const { currentUser, isLoggedIn, logout, notifications, markNotificationRead, markAllNotificationsRead, societyMembership, userType, membershipChoiceMade } = useMembership();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTab, setDialogOpenTab] = useState<"login" | "register">("login");
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [showChoiceDialog, setShowChoiceDialog] = useState(false);
+
+  // 首次登录且未做选择时，弹出决策对话框
+  React.useEffect(() => {
+    if (isLoggedIn && !membershipChoiceMade) {
+      setShowChoiceDialog(true);
+    } else {
+      setShowChoiceDialog(false);
+    }
+  }, [isLoggedIn, membershipChoiceMade]);
 
   const unreadNotifs = notifications.filter(n => !n.read);
 
@@ -491,11 +502,12 @@ export default function PartyLayout({ children, currentPageTitle, breadcrumbs }:
           </div>
         </div>
       </footer>
-      <LoginJoinDialog 
-        open={dialogOpen} 
-        onOpenChange={setDialogOpen} 
-        initialTab={dialogTab} 
+      <LoginJoinDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initialTab={dialogTab}
       />
+      <MembershipChoiceDialog open={showChoiceDialog} />
     </div>
   );
 }
