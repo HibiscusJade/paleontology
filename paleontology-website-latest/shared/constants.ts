@@ -61,6 +61,22 @@ export const MEMBERSHIP_STATUS = {
 
 export type MembershipStatus = typeof MEMBERSHIP_STATUS[keyof typeof MEMBERSHIP_STATUS];
 
+// ── 用户类型枚举（双路径选择） ───────────────────────────────────────────────
+
+export const USER_TYPE = {
+  REGULAR:      "regular",       // 普通用户，未做选择
+  NON_MEMBER:   "non_member",    // 非会员（路径A）
+  MEMBER:       "member",        // 正式会员（路径B）
+} as const;
+
+export type UserType = typeof USER_TYPE[keyof typeof USER_TYPE];
+
+export const USER_TYPE_LABEL: Record<string, string> = {
+  regular:     "普通用户",
+  non_member:  "非会员",
+  member:      "正式会员",
+};
+
 // ── 状态 → UI 标签映射 ────────────────────────────────────────────────────
 
 export const CONFERENCE_STATUS_LABEL: Record<string, string> = {
@@ -135,3 +151,27 @@ export const INVOICE_GRACE_PERIOD_WORKDAYS = 7;
 
 /** 发票截止日临近提醒阈值（天） */
 export const INVOICE_DEADLINE_WARNING_DAYS = 3;
+
+// ── 会议费非会员价配置（会员价 +10%） ──────────────────────────────────────
+
+/** 会议 ID → 会员价映射 */
+export const CONFERENCE_FEE_MEMBER: Record<string, number> = {
+  "demo-conf": 300,
+  "conf-1": 1200,
+  "conf-2": 800,
+  "conf-3": 1500,
+  "conf-4": 1000,
+  "conf-5": 900,
+  "conf-6": 1100,
+  "conf-7": 600,
+  "conf-8": 500,
+};
+
+/** 根据用户类型获取会议费 */
+export function getConferenceFee(confId: string, userType: string): number {
+  const memberFee = CONFERENCE_FEE_MEMBER[confId] ?? 1000;
+  if (userType === "non_member") {
+    return Math.round(memberFee * 1.1);
+  }
+  return memberFee;
+}
