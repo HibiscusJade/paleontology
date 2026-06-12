@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useMembership } from "../contexts/MembershipContext";
 import { toast } from "sonner";
 import LoginJoinDialog from "../components/LoginJoinDialog";
-import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR } from "@shared/constants";
+import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_FEE_MEMBER } from "@shared/constants";
 
 export default function Services() {
   const [location, setLocation] = useLocation();
@@ -37,6 +37,10 @@ export default function Services() {
     simApproveConferenceInvoice,
     simRejectConferenceInvoice,
     getMembershipFee,
+    userType,
+    membershipChoiceMade,
+    chooseMembershipPath,
+    getConferenceFee,
   } = useMembership();
 
   // Parse URL query parameter for tab selection (e.g. /services?tab=member)
@@ -243,6 +247,9 @@ export default function Services() {
   ];
 
   const mockVoucherUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCYIKxophjI9VUuetJuvkK5GcwQg2Yx4mJ6ad4thQyAGyXg_aJDk8e6Pqsg_WjOL9LtO7UbUlGghcpyhwbvGagEsopXe-xqv4bzd2K9b4nmSyIIjSnUGX0E7hCfWWyovFuLLGrcmbFHTdTvRvOWx_9rVuc9AJcscqZNQq5wj1Jfg6V4QDrOrL-Rdx8NywF5ELn7lY4rzQHwhGRxrq3gBIUZscn5alwj4Ep09ZvZY_jZP8MSsqxALmnA_YG9MZikpA497cfcoKNoS38";
+
+  const getMemberFeeOnly = (confId: string) => CONFERENCE_FEE_MEMBER[confId] ?? 1000;
+  const getNonMemberFeeOnly = (confId: string) => Math.round((CONFERENCE_FEE_MEMBER[confId] ?? 1000) * 1.1);
 
   // ==========================================================================
   // RENDER: MAIN PORTAL (code3)
@@ -454,6 +461,8 @@ export default function Services() {
     const isMemberInvoiceOverdue = societyMembership?.status === "invoice_overdue";
     const isMemberExpired = societyMembership?.status === "expired";
     const hasApplied = isMemberActive || isMemberPending || isMemberRejected || isMemberInvoicePending || isMemberInvoiceOverdue || isMemberExpired;
+    const isNonMember = userType === "non_member";
+    const isRegular = userType === "regular";
 
     // ── 缴费流程 ──────────────────────────────────────────────────────────────
     if (showFeePayment === "society") {
@@ -705,6 +714,12 @@ export default function Services() {
                 <div>
                   <h3 className="text-lg font-bold text-[#002B49]">{currentUser?.name}</h3>
                   <p className="text-xs text-slate-400 mt-1">{currentUser?.unit}</p>
+                  {isNonMember && (
+                    <span className="inline-block bg-slate-100 text-slate-600 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">非会员</span>
+                  )}
+                  {isRegular && (
+                    <span className="inline-block bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">待选择参与方式</span>
+                  )}
                   {isMemberActive && (
                     <span className="inline-block bg-green-100 text-green-700 text-[9px] font-bold px-2 py-0.5 rounded-full mt-2">✓ 学会正式会员</span>
                   )}
@@ -753,7 +768,26 @@ export default function Services() {
                 <span className="material-symbols-outlined text-[18px]">card_membership</span> 学会会员状态
               </h3>
 
-              {!hasApplied && (
+              {/* 非会员状态 */}
+              {isNonMember && (
+                <div className="text-center py-6">
+                  <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">person</span>
+                  <p className="text-xs text-slate-600 mb-1 font-bold">您当前为非会员</p>
+                  <p className="text-xs text-slate-500 mb-4">会议注册费将按非会员标准收取。<br />升级为正式会员可享受优惠价。</p>
+                  <button
+                    onClick={() => {
+                      chooseMembershipPath("member");
+                      setShowFeePayment("society");
+                      setMemberPayStep(1);
+                    }}
+                    className="bg-[#002B49] hover:bg-[#001f35] text-white px-6 py-2 rounded font-bold text-xs shadow-md w-full"
+                  >
+                    升级为正式会员（¥{getMembershipFee("standard")}/年）
+                  </button>
+                </div>
+              )}
+
+              {isRegular && !hasApplied && (
                 <div className="text-center py-6">
                   <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">person_add</span>
                   <p className="text-xs text-slate-500 mb-4">您尚未申请成为学会会员。<br />缴纳一次会费，即可绑定所有分会。</p>
@@ -896,7 +930,7 @@ export default function Services() {
                 </span>
               </div>
 
-              {!isMemberActive && (
+              {isRegular && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-xs text-amber-800 flex items-start gap-3">
                   <span className="material-symbols-outlined text-amber-600 mt-0.5">lock</span>
                   <div>
@@ -932,7 +966,7 @@ export default function Services() {
                             <span className="material-symbols-outlined text-[13px]">event</span>查看会议
                           </button>
                         )}
-                        {isMemberActive ? (
+                        {(isMemberActive || isNonMember) ? (
                           <button
                             onClick={() => {
                               toggleBranchBinding(b.id);
@@ -948,7 +982,7 @@ export default function Services() {
                           </button>
                         ) : (
                           <button disabled className="px-4 py-1.5 rounded font-bold text-xs bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
-                            需先入会
+                            需先选择参与方式
                           </button>
                         )}
                       </div>
@@ -1234,8 +1268,13 @@ export default function Services() {
                   </div>
                   <div className="flex justify-between border-b border-slate-200 pb-1.5">
                     <span className="text-slate-500">应缴金额</span>
-                    <span className="font-bold text-red-600">¥ {conf?.fee} 元</span>
+                    <span className="font-bold text-red-600">¥ {getConferenceFee(conf!.id)} 元</span>
                   </div>
+                  {userType === "non_member" && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mt-3">
+                      提示：升级为正式会员（¥200/年）后，本次会议可节省 ¥{getNonMemberFeeOnly(confPaymentTarget!) - getMemberFeeOnly(confPaymentTarget!)}。
+                    </div>
+                  )}
                   <div className="bg-white p-2.5 rounded border border-[#E5E1DA] leading-relaxed text-slate-500">
                     <strong>会费关联优惠：</strong>如果您已是古生物学会任意分会的“有效个人会员”，请在汇款备注中填写您的会员号，财务将核对并予以录用。
                   </div>
@@ -1339,7 +1378,7 @@ export default function Services() {
               <div className="flex flex-wrap gap-4 text-xs text-slate-500 mt-3">
                 <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">schedule</span> {conf?.time}</span>
                 <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">location_on</span> {conf?.location}</span>
-                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">sell</span> 注册费：¥ {conf?.fee} 元</span>
+                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">sell</span> 注册费：¥ {getConferenceFee(conf!.id)} 元</span>
               </div>
             </div>
 
@@ -1357,6 +1396,11 @@ export default function Services() {
               <h3 className="text-sm font-bold text-[#002B49] border-b border-slate-100 pb-2">一、会议主题与内容</h3>
               <p>{conf?.desc}</p>
               <h3 className="text-sm font-bold text-[#002B49] border-b border-slate-100 pb-2">二、会议缴费说明</h3>
+              <div className="bg-slate-50 border border-[#E5E1DA] rounded-lg p-4 mb-4 text-xs space-y-1">
+                <p className="font-bold text-[#002B49] mb-1">收费标准</p>
+                <p>正式会员：<strong className="text-[#002B49]">¥ {getMemberFeeOnly(conf!.id)} 元</strong></p>
+                <p>非会员：<strong className="text-red-600">¥ {getNonMemberFeeOnly(conf!.id)} 元</strong></p>
+              </div>
               <p>请各参会代表于大会召开前通过银行线下汇款缴纳会议注册费，并在学会服务门户提交汇款成功凭证截图。初审通过后，即可在线填报详细的学术报告（口头报告/展板交流）题目、上传论文摘要并选择由学会统一代订周边协议酒店。</p>
               <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-200">缴费截止日期：<strong>{conf?.feeDeadline}</strong>，学术摘要截止日期：<strong>{conf?.abstractDeadline}</strong></p>
             </div>
@@ -1375,6 +1419,14 @@ export default function Services() {
                         toast.error("请先登录系统再报名会议。");
                         setDialogOpenTab("login");
                         setDialogOpen(true);
+                        return;
+                      }
+                      if (userType === "regular") {
+                        toast.error("请先选择您的参与方式（会员/非会员）后再报名会议。");
+                        return;
+                      }
+                      if (userType === "member" && societyMembership.status !== "active" && societyMembership.status !== "invoice_pending" && societyMembership.status !== "invoice_submitted") {
+                        toast.error("您尚未完成会员缴费验证，请先前往会员服务完成入会流程。");
                         return;
                       }
                       if (isPaymentDeadlineExceeded) {
@@ -1565,7 +1617,7 @@ export default function Services() {
                   <div className="space-y-2 mb-6">
                     <p className="flex items-center gap-1"><span className="material-symbols-outlined text-slate-400 text-sm">schedule</span> {c.time}</p>
                     <p className="flex items-center gap-1"><span className="material-symbols-outlined text-slate-400 text-sm">location_on</span> {c.location}</p>
-                    <p className="flex items-center gap-1"><span className="material-symbols-outlined text-slate-400 text-sm">sell</span> 注册费：<strong>¥ {c.fee} 元</strong></p>
+                    <p className="flex items-center gap-1"><span className="material-symbols-outlined text-slate-400 text-sm">sell</span> 注册费：<strong>¥ {getConferenceFee(c.id)} 元</strong></p>
                   </div>
 
                   <div className="border-t border-slate-100 pt-4 flex justify-between items-center">
@@ -1788,7 +1840,7 @@ export default function Services() {
                     <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
                       <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">calendar_month</span>{c.time}</span>
                       <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">location_on</span>{c.location}</span>
-                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">payments</span>注册费 ¥{c.fee}</span>
+                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">payments</span>注册费 ¥{getConferenceFee(c.id)}</span>
                       <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">schedule</span>缴费截止 {c.feeDeadline}</span>
                     </div>
                   </div>
@@ -1798,7 +1850,7 @@ export default function Services() {
                         onClick={() => setActiveTab("member")}
                         className="bg-[#002B49] text-white px-4 py-2 rounded font-bold text-xs hover:bg-[#003d6b] transition-colors text-center"
                       >
-                        先加入会员
+                        先选择参与方式
                       </button>
                     )}
                     {isActiveMember && !isBound && (
