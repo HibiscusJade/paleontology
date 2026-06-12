@@ -42,7 +42,7 @@ The `isFullWidthPage` check in PartyLayout determines the layout — pages match
 
 `MembershipContext` (`client/src/contexts/MembershipContext.tsx`) is the central state hub. It manages:
 
-- **Authentication**: register/login/logout against a mock user DB persisted in `localStorage` under `paleo_user_db`. Demo accounts exist (see `MOCK_USER_DB`). Login/register dialog is `LoginJoinDialog.tsx`.
+- **Authentication**: register/login/logout against a mock user DB persisted in `localStorage` under `paleo_user_db`. Demo accounts exist (see `MOCK_USER_DB`). Login/register dialog is `LoginJoinDialog.tsx`. Logout clears all per-user state (including `userType` and `membershipChoiceMade`) and redirects to home. Available from the top-nav user dropdown ("安全退出") and the PersonalCenter profile tab.
 - **Dual-path membership** (会员双路径): all users start as `regular` (普通用户). On first login, `MembershipChoiceDialog` forces a choice between two paths:
   - **Path A — Non-member** (非会员, `userType = "non_member"`): no payment required. Can immediately bind branches and register for conferences at **non-member pricing** (member price × 1.1).
   - **Path B — Formal member** (正式会员, `userType = "member"`): must complete the two-stage payment flow (voucher upload → review → invoice upload → review → `status = "active"`). Once active, can bind branches and register at **member pricing**.

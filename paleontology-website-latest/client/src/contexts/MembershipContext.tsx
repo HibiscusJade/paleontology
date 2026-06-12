@@ -395,6 +395,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setBoundBranches([]);
     setConferenceRegs({});
     setNotifications([]);
+    setUserType("regular");
+    setMembershipChoiceMade(false);
     toast.info("您已安全退出登录。");
   };
 

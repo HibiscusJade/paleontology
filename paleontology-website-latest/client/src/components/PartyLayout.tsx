@@ -186,8 +186,8 @@ export default function PartyLayout({ children, currentPageTitle, breadcrumbs }:
                           <span className="material-symbols-outlined text-[16px]">account_tree</span> 我的分会
                         </button>
                         <div className="border-t border-[#E5E1DA] my-1"></div>
-                        <button 
-                          onClick={() => { logout(); setShowUserMenu(false); }}
+                        <button
+                          onClick={() => { logout(); setShowUserMenu(false); setLocation("/"); }}
                           className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2 font-bold"
                         >
                           <span className="material-symbols-outlined text-[16px]">logout</span> 安全退出

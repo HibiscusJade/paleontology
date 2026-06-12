@@ -37,7 +37,7 @@ const CONF_MAP: Record<string, { title: string; branchName: string; time: string
 };
 
 export default function PersonalCenter() {
-  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType } = useMembership();
+  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType, logout } = useMembership();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"profile" | "branches" | "conferences" | "payments">("profile");
   const [isEditing, setIsEditing] = useState(false);
@@ -409,6 +409,22 @@ export default function PersonalCenter() {
                   <li>• 请定期修改密码以保护账户安全。</li>
                   <li>• 修改密码时需要输入原密码进行验证。</li>
                 </ul>
+              </div>
+            </Card>
+
+            <Card className="border border-red-200 shadow-sm">
+              <div className="p-6">
+                <h3 className="font-bold text-red-600 mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined">logout</span> 账户操作
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">退出当前账户，返回首页。您的所有数据已安全保存。</p>
+                <Button
+                  onClick={() => { logout(); setLocation("/"); }}
+                  className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">logout</span>
+                  安全退出登录
+                </Button>
               </div>
             </Card>
           </div>
