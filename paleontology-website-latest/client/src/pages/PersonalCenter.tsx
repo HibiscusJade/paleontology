@@ -37,7 +37,7 @@ const CONF_MAP: Record<string, { title: string; branchName: string; time: string
 };
 
 export default function PersonalCenter() {
-  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs } = useMembership();
+  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType } = useMembership();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"profile" | "branches" | "conferences" | "payments">("profile");
   const [isEditing, setIsEditing] = useState(false);
@@ -267,6 +267,16 @@ export default function PersonalCenter() {
                     <div>
                       <h2 className="text-2xl font-bold text-[#002B49]">{currentUser.name}</h2>
                       <p className="text-sm text-slate-500">{currentUser.email}</p>
+                      {userType === "non_member" && (
+                        <span className="inline-block mt-1 bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          非会员
+                        </span>
+                      )}
+                      {userType === "regular" && (
+                        <span className="inline-block mt-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          待选择参与方式
+                        </span>
+                      )}
                       {societyMembership?.status === "active" && (
                         <span className="inline-block mt-1 bg-green-50 text-green-700 border border-green-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
                           ✓ 学会正式会员
@@ -416,7 +426,16 @@ export default function PersonalCenter() {
             </div>
 
             {/* 会员状态提示 */}
-            {societyMembership?.status !== "active" && (
+            {userType === "regular" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-500 mt-0.5">lock</span>
+                <div>
+                  <p className="font-bold">需要先选择参与方式</p>
+                  <p className="text-amber-700 mt-1">请先选择成为会员或作为非会员使用，即可绑定专业分会。</p>
+                </div>
+              </div>
+            )}
+            {userType === "member" && societyMembership?.status !== "active" && societyMembership?.status !== "invoice_pending" && societyMembership?.status !== "invoice_submitted" && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 flex items-start gap-2">
                 <span className="material-symbols-outlined text-amber-500 mt-0.5">lock</span>
                 <div>
