@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PartyLayout from "../components/PartyLayout";
 import { useMembership } from "../contexts/MembershipContext";
 import { useLocation } from "wouter";
@@ -40,6 +40,16 @@ export default function PersonalCenter() {
   const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType, logout, deleteAccount } = useMembership();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"profile" | "branches" | "conferences" | "payments">("profile");
+
+  // 支持通过 ?tab= 参数直接定位到指定 tab（例如从导航栏"我的分会"跳转）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam && ["profile", "branches", "conferences", "payments"].includes(tabParam)) {
+      setActiveTab(tabParam as "profile" | "branches" | "conferences" | "payments");
+    }
+  }, []);
+
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);

@@ -180,7 +180,7 @@ export default function PartyLayout({ children, currentPageTitle, breadcrumbs }:
                         </button>
 
                         <button 
-                          onClick={() => { setLocation("/personal-center"); setShowUserMenu(false); }}
+                          onClick={() => { setLocation("/personal-center?tab=branches"); setShowUserMenu(false); }}
                           className="w-full text-left px-4 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                         >
                           <span className="material-symbols-outlined text-[16px]">account_tree</span> 我的分会
