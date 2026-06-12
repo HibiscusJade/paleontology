@@ -787,6 +787,21 @@ export default function Services() {
                 </div>
               )}
 
+              {/* 已选择「正式会员」但尚未缴费 → 提供缴费入口 */}
+              {!isNonMember && !isRegular && !hasApplied && (
+                <div className="text-center py-6">
+                  <span className="material-symbols-outlined text-4xl text-amber-400 mb-2">card_membership</span>
+                  <p className="text-xs text-slate-600 mb-1 font-bold">您已选择成为正式会员</p>
+                  <p className="text-xs text-slate-500 mb-4">请缴纳会费并完成验证，<br />即可绑定分会并享受会员价参会。</p>
+                  <button
+                    onClick={() => { setShowFeePayment("society"); setMemberPayStep(1); }}
+                    className="bg-[#002B49] hover:bg-[#001f35] text-white px-6 py-2 rounded font-bold text-xs shadow-md w-full"
+                  >
+                    立即缴纳会费（¥{getMembershipFee("standard")}/年）
+                  </button>
+                </div>
+              )}
+
               {isRegular && !hasApplied && (
                 <div className="text-center py-6">
                   <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">person_add</span>
@@ -918,7 +933,7 @@ export default function Services() {
             <div className="bg-white border border-[#E5E1DA] rounded-xl p-6 shadow-sm">
               <div className="flex justify-between items-start border-b border-slate-100 pb-4 mb-6">
                 <div>
-                  <h2 className="text-base font-bold text-[#002B49]">专业分会绑定管理</h2>
+                  <h2 className="text-base font-bold text-[#002B49]">会议绑定管理</h2>
                   <p className="text-slate-400 text-[10px] mt-1">
                     {isMemberActive
                       ? "您是学会正式会员，可自由绑定或解绑任意专业分会，绑定后自动接收该分会的会议通知与学术资讯。"
@@ -926,7 +941,7 @@ export default function Services() {
                   </p>
                 </div>
                 <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded">
-                  已绑定 {boundBranches.length} / 11 个分会
+                  已绑定 {boundBranches.length + 1} / 11 个分会
                 </span>
               </div>
 
@@ -941,6 +956,33 @@ export default function Services() {
               )}
 
               <div className="space-y-3">
+                {/* 总学会模块 — 默认绑定、不可解绑 */}
+                <div className="border rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-all border-green-300 bg-green-50/30">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-bold text-[#002B49] text-sm">中国古生物学会（总学会）</h4>
+                      <span className="text-[9px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">已绑定</span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">中国古生物学会是由全国古生物科技工作者组成的学术性、非营利性社会团体，致力于推动古生物学领域的学术交流、科学普及与学科发展。</p>
+                  </div>
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setConferenceBranchFilter(null);
+                        setActiveTab("conference");
+                        setSelectedConference(null);
+                        setEditingReg(null);
+                      }}
+                      className="px-3 py-1.5 rounded font-bold text-xs border border-[#002B49] text-[#002B49] hover:bg-[#002B49] hover:text-white transition-all flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">event</span>查看会议
+                    </button>
+                    <button disabled className="px-4 py-1.5 rounded font-bold text-xs bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
+                      无需解绑
+                    </button>
+                  </div>
+                </div>
+
                 {branches.map((b) => {
                   const isBound = boundBranches.includes(b.id);
                   return (
@@ -966,7 +1008,7 @@ export default function Services() {
                             <span className="material-symbols-outlined text-[13px]">event</span>查看会议
                           </button>
                         )}
-                        {(isMemberActive || isNonMember) ? (
+                        {(isMemberActive || isNonMember || isMemberInvoicePending || societyMembership?.status === "invoice_submitted") ? (
                           <button
                             onClick={() => {
                               toggleBranchBinding(b.id);
@@ -982,7 +1024,7 @@ export default function Services() {
                           </button>
                         ) : (
                           <button disabled className="px-4 py-1.5 rounded font-bold text-xs bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
-                            需先选择参与方式
+                            {isRegular ? "需先选择参与方式" : "需先完成入会缴费"}
                           </button>
                         )}
                       </div>
