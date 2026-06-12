@@ -37,11 +37,12 @@ const CONF_MAP: Record<string, { title: string; branchName: string; time: string
 };
 
 export default function PersonalCenter() {
-  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType, logout } = useMembership();
+  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType, logout, deleteAccount } = useMembership();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"profile" | "branches" | "conferences" | "payments">("profile");
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || "",
@@ -415,16 +416,64 @@ export default function PersonalCenter() {
             <Card className="border border-red-200 shadow-sm">
               <div className="p-6">
                 <h3 className="font-bold text-red-600 mb-3 flex items-center gap-2">
-                  <span className="material-symbols-outlined">logout</span> 账户操作
+                  <span className="material-symbols-outlined">manage_accounts</span> 账户操作
                 </h3>
-                <p className="text-sm text-slate-600 mb-4">退出当前账户，返回首页。您的所有数据已安全保存。</p>
-                <Button
-                  onClick={() => { logout(); setLocation("/"); }}
-                  className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-sm">logout</span>
-                  安全退出登录
-                </Button>
+
+                {/* 安全退出 */}
+                <div className="pb-5 mb-5 border-b border-red-100">
+                  <p className="text-sm text-slate-600 mb-3">退出当前账户，返回首页。您的所有数据已安全保存。</p>
+                  <Button
+                    onClick={() => { logout(); setLocation("/"); }}
+                    className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-sm">logout</span>
+                    安全退出登录
+                  </Button>
+                </div>
+
+                {/* 注销账号 */}
+                <div>
+                  <p className="text-sm text-slate-700 mb-2 font-bold">注销账号</p>
+                  <p className="text-sm text-slate-500 mb-3 leading-relaxed">
+                    注销后，您的账户将被<strong className="text-red-600">永久删除</strong>，包括个人资料、会员资格、分会绑定、会议报名记录及全部通知消息。<br />
+                    此操作<strong className="text-red-600">不可撤销</strong>，请谨慎选择。
+                  </p>
+
+                  {!showDeleteConfirm ? (
+                    <Button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="border border-red-400 text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-sm">person_remove</span>
+                      注销账号
+                    </Button>
+                  ) : (
+                    <div className="bg-red-50 border border-red-300 rounded-lg p-4 space-y-3">
+                      <p className="text-sm text-red-700 font-bold flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px]">warning</span>
+                        确认注销？此操作不可撤销！
+                      </p>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => {
+                            deleteAccount();
+                            setLocation("/");
+                          }}
+                          className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-sm">done</span>
+                          确认注销
+                        </Button>
+                        <Button
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="border border-slate-300 text-slate-600 hover:bg-slate-50"
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </Card>
           </div>

@@ -119,6 +119,7 @@ interface MembershipContextType {
   register: (user: User, password: string) => boolean;
   login: (email: string, password: string) => boolean;
   logout: () => void;
+  deleteAccount: () => void;
   updateProfile: (user: Partial<User>) => void;
   resetPassword: (email: string) => void;
 
@@ -398,6 +399,42 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setUserType("regular");
     setMembershipChoiceMade(false);
     toast.info("您已安全退出登录。");
+  };
+
+  const deleteAccount = () => {
+    if (!currentUser) return;
+
+    const email = currentUser.email;
+
+    // 1. 从用户数据库中删除
+    const users = JSON.parse(localStorage.getItem("paleo_user_db") || JSON.stringify(MOCK_USER_DB));
+    const filteredUsers = users.filter((u: any) => u.email.toLowerCase() !== email.toLowerCase());
+    localStorage.setItem("paleo_user_db", JSON.stringify(filteredUsers));
+
+    // 2. 清除该用户的所有个人数据
+    localStorage.removeItem(`paleo_society_membership_${email}`);
+    localStorage.removeItem(`paleo_bound_branches_${email}`);
+    localStorage.removeItem(`paleo_confs_${email}`);
+    localStorage.removeItem(`paleo_notifs_${email}`);
+    localStorage.removeItem(`paleo_user_type_${email}`);
+    localStorage.removeItem(`paleo_choice_made_${email}`);
+
+    // 3. 从全体用户列表中删除
+    const updatedAllUsers = allUsers.filter(u => u.email.toLowerCase() !== email.toLowerCase());
+    setAllUsers(updatedAllUsers);
+    saveState("paleo_all_users", updatedAllUsers);
+
+    // 4. 清除登录状态
+    localStorage.removeItem("paleo_current_user");
+    setCurrentUser(null);
+    setSocietyMembership(DEFAULT_SOCIETY_MEMBERSHIP);
+    setBoundBranches([]);
+    setConferenceRegs({});
+    setNotifications([]);
+    setUserType("regular");
+    setMembershipChoiceMade(false);
+
+    toast.info("您的账号已成功注销。感谢您使用中国古生物学会数字化平台。");
   };
 
   const updateProfile = (profileUpdates: Partial<User>) => {
@@ -1353,6 +1390,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       register,
       login,
       logout,
+      deleteAccount,
       updateProfile,
       resetPassword,
       applySocietyMembership,
