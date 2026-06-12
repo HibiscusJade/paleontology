@@ -1,10 +1,58 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import PartyLayout from "../components/PartyLayout";
 import { useLocation } from "wouter";
+import { MEMBERSHIP_FEE_CONFIG, CONFERENCE_FEE_MEMBER } from "@shared/constants";
+
+// ── 缴费标准公告（固定置顶） ──────────────────────────────────────────────
+const FEE_STANDARDS_NOTICE = {
+  id: 0, // 固定 ID，始终置顶
+  isFeatured: true,
+  isFeeStandards: true as const,
+  category: "组织工作",
+  date: "2026-06-12",
+  title: "中国古生物学会会员费及会议注册费收费标准公示",
+  desc: "",
+  views: "",
+  day: "",
+  month: "",
+  code: "",
+};
+
+const CONFERENCE_FEE_LIST: { name: string; memberFee: number; nonMemberFee: number }[] = [
+  { name: "第十五届全国微体古生物学学术研讨会", memberFee: 1200, nonMemberFee: 1320 },
+  { name: "2026年度古植物学与环境演变论坛", memberFee: 800, nonMemberFee: 880 },
+  { name: "热河生物群国际学术研讨会", memberFee: 1500, nonMemberFee: 1650 },
+  { name: "第十二届全国古脊椎动物学学术年会", memberFee: 1000, nonMemberFee: 1100 },
+  { name: "中国孢粉学会第十届全国学术大会", memberFee: 900, nonMemberFee: 990 },
+  { name: "古生态学与古环境重建国际研讨会", memberFee: 1100, nonMemberFee: 1210 },
+  { name: "地球生物学前沿论坛", memberFee: 600, nonMemberFee: 660 },
+  { name: "古生物学新技术新方法专题研讨会", memberFee: 500, nonMemberFee: 550 },
+  { name: "古无脊椎动物学学术工作坊（演示会议）", memberFee: 300, nonMemberFee: 330 },
+];
 
 export default function SocietyAnnouncements() {
   const [activeCategory, setActiveFilter] = useState("全部公告");
+  const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const [, setLocation] = useLocation();
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // 读取 URL 中的 highlight 参数，滚动到对应公告
+  useEffect(() => {
+    const raw = window.location.href;
+    const qs = raw.includes("?") ? raw.split("?")[1] : "";
+    const m = qs.match(/(?:^|&)highlight=(\d+)/);
+    if (m) {
+      const id = parseInt(m[1], 10);
+      setHighlightedId(id);
+      // 等 DOM 渲染后滚动到目标公告
+      setTimeout(() => {
+        const el = listRef.current?.querySelector(`[data-announcement-id="${id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 200);
+    }
+  }, []);
 
   const categories = [
     { name: "全部公告", count: 42 },
@@ -15,6 +63,7 @@ export default function SocietyAnnouncements() {
   ];
 
   const announcements = [
+    FEE_STANDARDS_NOTICE, // 缴费标准始终置顶
     {
       id: 1,
       isFeatured: true,
@@ -104,8 +153,7 @@ export default function SocietyAnnouncements() {
         <section className="w-full lg:w-3/4">
           <div className="flex items-center justify-between mb-8 border-b border-[#E5E1DA] pb-4">
             <div className="flex gap-8">
-              <button className="font-bold text-[#002B49] border-b-2 border-[#002B49] pb-4 relative -bottom-[17px]">最新发布</button>
-              <button className="text-slate-500 hover:text-[#002B49] transition-colors pb-4">按热度</button>
+              <span className="font-bold text-[#002B49] border-b-2 border-[#002B49] pb-4 relative -bottom-[17px]">最新发布</span>
             </div>
             <div className="text-slate-500 text-xs">
               <span>显示 1-{filteredAnnouncements.length} 条，共 {activeCategory === "全部公告" ? 42 : filteredAnnouncements.length} 条结果</span>
@@ -113,11 +161,94 @@ export default function SocietyAnnouncements() {
           </div>
 
           {/* Announcement List */}
-          <div className="space-y-6">
+          <div ref={listRef} className="space-y-6">
             {filteredAnnouncements.map((item) => {
+              // ── 缴费标准公告：特殊卡片 ──
+              if ((item as any).isFeeStandards) {
+                return (
+                  <div key={item.id} data-announcement-id={item.id} className={`bg-white border-l-4 border-[#C41E3A] shadow-sm border-y border-r border-[#E5E1DA] p-8 mb-6 transition-all duration-700 ${highlightedId === item.id ? "ring-2 ring-[#C41E3A] ring-offset-2 bg-red-50/30" : ""}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="bg-red-50 text-red-600 px-3 py-1 text-[10px] font-bold tracking-wider rounded border border-red-100 uppercase">缴费标准公示</span>
+                      <span className="text-xs text-slate-500 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">calendar_today</span> {item.date}
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold text-[#002B49] mb-6">
+                      {item.title}
+                    </h2>
+
+                    {/* 会员费标准 */}
+                    <div className="mb-6">
+                      <h3 className="font-bold text-sm text-[#002B49] mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px]">card_membership</span>
+                        一、学会会员费标准
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border border-[#E5E1DA] rounded-lg overflow-hidden">
+                          <thead className="bg-[#002B49] text-white text-xs">
+                            <tr>
+                              <th className="px-4 py-2.5 text-left font-bold">会员类型</th>
+                              <th className="px-4 py-2.5 text-right font-bold">年费标准</th>
+                              <th className="px-4 py-2.5 text-left font-bold">说明</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#E5E1DA]">
+                            <tr className="bg-white">
+                              <td className="px-4 py-3 font-bold text-[#002B49]">普通会员</td>
+                              <td className="px-4 py-3 text-right font-bold text-[#002B49]">¥{MEMBERSHIP_FEE_CONFIG.default.standard}/年</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">适用于绝大多数古生物科技工作者</td>
+                            </tr>
+                            <tr className="bg-slate-50">
+                              <td className="px-4 py-3 font-bold text-[#002B49]">学生会员</td>
+                              <td className="px-4 py-3 text-right font-bold text-[#002B49]">¥{MEMBERSHIP_FEE_CONFIG.default.student}/年</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">在读本科生、硕士及博士研究生</td>
+                            </tr>
+                            <tr className="bg-white">
+                              <td className="px-4 py-3 font-bold text-[#002B49]">单位会员</td>
+                              <td className="px-4 py-3 text-right font-bold text-[#002B49]">¥{MEMBERSHIP_FEE_CONFIG.default.corporate}/年</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">科研院所、高校院系、企事业单位</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">* 会费按年度缴纳，有效期自财务审核通过之日起算一年。会员到期后需续费以维持资格。</p>
+                    </div>
+
+                    {/* 会议费标准 */}
+                    <div>
+                      <h3 className="font-bold text-sm text-[#002B49] mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px]">event</span>
+                        二、学术会议注册费标准
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border border-[#E5E1DA] rounded-lg overflow-hidden">
+                          <thead className="bg-[#002B49] text-white text-xs">
+                            <tr>
+                              <th className="px-4 py-2.5 text-left font-bold">会议名称</th>
+                              <th className="px-4 py-2.5 text-right font-bold">会员价</th>
+                              <th className="px-4 py-2.5 text-right font-bold">非会员价</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#E5E1DA]">
+                            {CONFERENCE_FEE_LIST.map((conf, idx) => (
+                              <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                                <td className="px-4 py-2.5 text-xs text-[#002B49] font-bold">{conf.name}</td>
+                                <td className="px-4 py-2.5 text-right text-xs font-bold text-green-700">¥{conf.memberFee}</td>
+                                <td className="px-4 py-2.5 text-right text-xs text-slate-500">¥{conf.nonMemberFee}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">* 非会员价 = 会员价 × 1.1（向上取整）。正式会员享受会员价优惠。各场会议独立缴费、独立审核。</p>
+                    </div>
+                  </div>
+                );
+              }
+
               if (item.isFeatured) {
                 return (
-                  <div key={item.id} className="bg-white border-l-4 border-[#002B49] shadow-sm border-y border-r border-[#E5E1DA] p-8 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer">
+                  <div key={item.id} data-announcement-id={item.id} className={`bg-white border-l-4 border-[#002B49] shadow-sm border-y border-r border-[#E5E1DA] p-8 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer ${highlightedId === item.id ? "ring-2 ring-[#002B49] ring-offset-2 bg-blue-50/30" : ""}`}>
                     <div className="flex justify-between items-start mb-4">
                       <span className="bg-red-50 text-red-600 px-3 py-1 text-[10px] font-bold tracking-wider rounded border border-red-100 uppercase">重要通知</span>
                       <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -148,7 +279,7 @@ export default function SocietyAnnouncements() {
               }
 
               return (
-                <div key={item.id} className="bg-white border border-[#E5E1DA] p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer flex gap-8">
+                <div key={item.id} data-announcement-id={item.id} className={`bg-white border border-[#E5E1DA] p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer flex gap-8 ${highlightedId === item.id ? "ring-2 ring-[#002B49] ring-offset-2 bg-blue-50/30" : ""}`}>
                   <div className="hidden md:flex flex-col items-center justify-center bg-slate-50 w-24 h-24 rounded border border-[#E5E1DA] shrink-0">
                     <span className="text-3xl font-bold text-[#002B49]">{item.day}</span>
                     <span className="text-[10px] font-bold text-slate-500 uppercase">{item.month}</span>

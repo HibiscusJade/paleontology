@@ -192,22 +192,22 @@ export default function SocietyHome() {
                   <h3 className="font-bold text-lg text-slate-800">通知公告</h3>
                 </div>
                 <div className="space-y-4">
-                  <a className="block bg-white p-4 border-l-4 border-red-700 hover:bg-red-50 transition-colors rounded-r shadow-sm" href="#">
+                  <Link href="/society-announcements?highlight=2" className="block bg-white p-4 border-l-4 border-red-700 hover:bg-red-50 transition-colors rounded-r shadow-sm cursor-pointer">
                     <p className="text-xs text-red-700 font-bold mb-1">[置顶] 关于举办2024年全国学术年会...</p>
                     <span className="text-[10px] text-slate-400">2024-06-01</span>
-                  </a>
-                  <a className="block hover:bg-white p-2 transition-colors border-b border-[#E5E1DA]" href="#">
+                  </Link>
+                  <Link href="/society-announcements?highlight=3" className="block hover:bg-white p-2 transition-colors border-b border-[#E5E1DA] cursor-pointer">
                     <p className="text-xs font-bold text-slate-800 line-clamp-1">学会近期人才库入库申请流程说明</p>
                     <span className="text-[10px] text-slate-400">2024-05-25</span>
-                  </a>
-                  <a className="block hover:bg-white p-2 transition-colors border-b border-[#E5E1DA]" href="#">
+                  </Link>
+                  <Link href="/society-announcements?highlight=1" className="block hover:bg-white p-2 transition-colors border-b border-[#E5E1DA] cursor-pointer">
                     <p className="text-xs font-bold text-slate-800 line-clamp-1">第十五届古生物学优秀论文评选开始</p>
                     <span className="text-[10px] text-slate-400">2024-05-18</span>
-                  </a>
-                  <a className="block hover:bg-white p-2 transition-colors border-b border-[#E5E1DA]" href="#">
+                  </Link>
+                  <Link href="/society-announcements?highlight=0" className="block hover:bg-white p-2 transition-colors border-b border-[#E5E1DA] cursor-pointer">
                     <p className="text-xs font-bold text-slate-800 line-clamp-1">关于更新会员缴费标准的公示</p>
                     <span className="text-[10px] text-slate-400">2024-05-05</span>
-                  </a>
+                  </Link>
                 </div>
                 <Link href="/society-announcements">
                   <button className="w-full mt-6 py-2 bg-white border border-slate-300 text-xs font-bold hover:bg-slate-100 transition-all rounded cursor-pointer">

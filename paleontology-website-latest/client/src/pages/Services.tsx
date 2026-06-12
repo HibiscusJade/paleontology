@@ -285,15 +285,35 @@ export default function Services() {
 
         {/* Quick Services Grid */}
         <div className="max-w-7xl mx-auto px-6 mt-12">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* 专业分会 */}
             <div onClick={() => setActiveTab("branches")} className="bg-white border-t-4 border-[#002B49] border-x border-b border-[#E5E1DA] p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-pointer group rounded-b-lg">
               <div className="bg-slate-100 w-12 h-12 flex items-center justify-center rounded-lg mb-4 group-hover:bg-[#002B49] transition-colors">
                 <span className="material-symbols-outlined text-[#002B49] group-hover:text-white">account_tree</span>
               </div>
-              <h3 className="font-bold text-lg text-[#002B49] mb-2">专业分会 (重点)</h3>
+              <h3 className="font-bold text-lg text-[#002B49] mb-2">专业分会</h3>
               <p className="text-xs text-slate-500 mb-4 leading-relaxed">下耆11个专业分会（委员会），覆盖古生物学各主要研究领域，点击了解各分会详情。</p>
               <span className="flex items-center text-[#715a3e] font-bold text-xs tracking-widest">了解分会 <span className="material-symbols-outlined ml-1 text-sm">arrow_forward</span></span>
             </div>
+            {/* 会员服务 */}
+            <div onClick={() => setActiveTab("member")} className="bg-white border-t-4 border-[#002B49] border-x border-b border-[#E5E1DA] p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-pointer group rounded-b-lg">
+              <div className="bg-slate-100 w-12 h-12 flex items-center justify-center rounded-lg mb-4 group-hover:bg-[#002B49] transition-colors">
+                <span className="material-symbols-outlined text-[#002B49] group-hover:text-white">card_membership</span>
+              </div>
+              <h3 className="font-bold text-lg text-[#002B49] mb-2">会员服务</h3>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">在线申请入会、缴纳会费、绑定专业分会，享受正式会员专属权益与学术会议优惠。</p>
+              <span className="flex items-center text-[#715a3e] font-bold text-xs tracking-widest">申请入会 <span className="material-symbols-outlined ml-1 text-sm">arrow_forward</span></span>
+            </div>
+            {/* 学术会议 */}
+            <div onClick={() => setActiveTab("conference")} className="bg-white border-t-4 border-[#002B49] border-x border-b border-[#E5E1DA] p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-pointer group rounded-b-lg">
+              <div className="bg-slate-100 w-12 h-12 flex items-center justify-center rounded-lg mb-4 group-hover:bg-[#002B49] transition-colors">
+                <span className="material-symbols-outlined text-[#002B49] group-hover:text-white">event</span>
+              </div>
+              <h3 className="font-bold text-lg text-[#002B49] mb-2">学术会议</h3>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">浏览各分会发布的学术会议，在线报名、缴纳注册费、上传摘要并填写参会信息。</p>
+              <span className="flex items-center text-[#715a3e] font-bold text-xs tracking-widest">浏览会议 <span className="material-symbols-outlined ml-1 text-sm">arrow_forward</span></span>
+            </div>
+            {/* 国际交流 */}
             <div onClick={() => setActiveTab("international")} className="bg-white border-t-4 border-[#002B49] border-x border-b border-[#E5E1DA] p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-pointer group rounded-b-lg">
               <div className="bg-slate-100 w-12 h-12 flex items-center justify-center rounded-lg mb-4 group-hover:bg-[#002B49] transition-colors">
                 <span className="material-symbols-outlined text-[#002B49] group-hover:text-white">public</span>
@@ -302,6 +322,7 @@ export default function Services() {
               <p className="text-xs text-slate-500 mb-4 leading-relaxed">外事手续指导、国际会议组织申报及国际合作机构联络。</p>
               <span className="flex items-center text-[#715a3e] font-bold text-xs tracking-widest">了解更多 <span className="material-symbols-outlined ml-1 text-sm">arrow_forward</span></span>
             </div>
+            {/* 科学传播 */}
             <div onClick={() => setActiveTab("science")} className="bg-white border-t-4 border-[#002B49] border-x border-b border-[#E5E1DA] p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-pointer group rounded-b-lg">
               <div className="bg-slate-100 w-12 h-12 flex items-center justify-center rounded-lg mb-4 group-hover:bg-[#002B49] transition-colors">
                 <span className="material-symbols-outlined text-[#002B49] group-hover:text-white">biotech</span>
@@ -310,49 +331,14 @@ export default function Services() {
               <p className="text-xs text-slate-500 mb-4 leading-relaxed">科普工作动态、期刊服务、科普基地申请及化石保护利用。</p>
               <span className="flex items-center text-[#715a3e] font-bold text-xs tracking-widest">探索资源 <span className="material-symbols-outlined ml-1 text-sm">arrow_forward</span></span>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Core Services Section */}
-      <section className="py-12 bg-white border-y border-[#E5E1DA]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex justify-between items-end mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-[#002B49] font-serif">核心学术服务</h2>
-              <p className="text-slate-500 text-xs mt-2">为您提供全生命周期的学术生涯支持</p>
-            </div>
-            <button className="text-xs font-bold text-[#002B49] flex items-center gap-1 hover:text-[#715a3e] transition-colors">
-              全部服务项 <span className="material-symbols-outlined text-sm">chevron_right</span>
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-50 border border-[#E5E1DA] p-8 rounded-lg flex flex-col gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("awards")}>
-              <div className="text-[#715a3e]"><span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>rewarded_ads</span></div>
-              <h4 className="text-lg font-bold text-[#002B49]">科技奖励申报</h4>
-              <p className="text-slate-600 text-xs leading-relaxed">中国古生物学会设立了多个行业权威奖项（如杰出成就奖、青年古生物学奖等），在线填报申报材料并进行同行专家推荐评审。</p>
-              <ul className="space-y-2 mt-2">
-                <li className="flex items-center text-xs text-slate-600 gap-2"><span className="material-symbols-outlined text-green-600 text-sm">check_circle</span> 科技奖励申报指南</li>
-                <li className="flex items-center text-xs text-slate-600 gap-2"><span className="material-symbols-outlined text-green-600 text-sm">check_circle</span> 历届获奖人及成果名录</li>
-              </ul>
-            </div>
-            <div className="bg-slate-50 border border-[#E5E1DA] p-8 rounded-lg flex flex-col gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("science")}>
-              <div className="text-[#715a3e]"><span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>auto_stories</span></div>
-              <h4 className="text-lg font-bold text-[#002B49]">期刊出版服务</h4>
-              <p className="text-slate-600 text-xs leading-relaxed">提供学会主办的《古生物学报》、《Palaeoworld》等权威中英文期刊的在线投稿系统链接、征稿简则、审稿流程及最新出版刊期目录查询。</p>
-              <ul className="space-y-2 mt-2">
-                <li className="flex items-center text-xs text-slate-600 gap-2"><span className="material-symbols-outlined text-green-600 text-sm">check_circle</span> 学术期刊在线投稿通道</li>
-                <li className="flex items-center text-xs text-slate-600 gap-2"><span className="material-symbols-outlined text-green-600 text-sm">check_circle</span> 中英文征稿简则及排版模板</li>
-              </ul>
-            </div>
-            <div className="bg-slate-50 border border-[#E5E1DA] p-8 rounded-lg flex flex-col gap-4">
-              <div className="text-[#715a3e]"><span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>school</span></div>
-              <h4 className="text-lg font-bold text-[#002B49]">科普基地与化石保护</h4>
-              <p className="text-slate-600 text-xs leading-relaxed">指导全国各级古生物科普基地的申报与复核，发布国家重点保护化石名录及化石发掘、出境、保护政策条例，提供化石修复技术培训咨询。</p>
-              <ul className="space-y-2 mt-2">
-                <li className="flex items-center text-xs text-slate-600 gap-2"><span className="material-symbols-outlined text-green-600 text-sm">check_circle</span> 全国科普基地申报入口</li>
-                <li className="flex items-center text-xs text-slate-600 gap-2"><span className="material-symbols-outlined text-green-600 text-sm">check_circle</span> 化石发掘与保护条例指南</li>
-              </ul>
+            {/* 科技奖励 */}
+            <div onClick={() => setActiveTab("awards")} className="bg-white border-t-4 border-[#002B49] border-x border-b border-[#E5E1DA] p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-pointer group rounded-b-lg">
+              <div className="bg-slate-100 w-12 h-12 flex items-center justify-center rounded-lg mb-4 group-hover:bg-[#002B49] transition-colors">
+                <span className="material-symbols-outlined text-[#002B49] group-hover:text-white">rewarded_ads</span>
+              </div>
+              <h3 className="font-bold text-lg text-[#002B49] mb-2">科技奖励</h3>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">中国古生物学会设立多项行业权威奖项，在线填报申报材料并进行同行专家推荐评审。</p>
+              <span className="flex items-center text-[#715a3e] font-bold text-xs tracking-widest">申报奖励 <span className="material-symbols-outlined ml-1 text-sm">arrow_forward</span></span>
             </div>
           </div>
         </div>
