@@ -43,9 +43,14 @@ The `isFullWidthPage` check in PartyLayout determines the layout — pages match
 `MembershipContext` (`client/src/contexts/MembershipContext.tsx`) is the central state hub. It manages:
 
 - **Authentication**: register/login/logout against a mock user DB persisted in `localStorage` under `paleo_user_db`. Demo accounts exist (see `MOCK_USER_DB`). Login/register dialog is `LoginJoinDialog.tsx`.
-- **Society membership**: two-stage payment flow (voucher upload → review → invoice upload → review → approved). Active membership is required to bind branches and attend conferences.
-- **Branch binding**: bind/unbind to professional branches (e.g., Vertebrate Paleontology, Palynology).
-- **Conference registrations**: two-stage conference fee flow → submit forms → upload abstracts.
+- **Dual-path membership** (会员双路径): all users start as `regular` (普通用户). On first login, `MembershipChoiceDialog` forces a choice between two paths:
+  - **Path A — Non-member** (非会员, `userType = "non_member"`): no payment required. Can immediately bind branches and register for conferences at **non-member pricing** (member price × 1.1).
+  - **Path B — Formal member** (正式会员, `userType = "member"`): must complete the two-stage payment flow (voucher upload → review → invoice upload → review → `status = "active"`). Once active, can bind branches and register at **member pricing**.
+  - Non-members can upgrade to member at any time via the member services page.
+  - `userType` and `membershipChoiceMade` are stored in `localStorage` under `paleo_user_type_{email}` and `paleo_choice_made_{email}`.
+- **Society membership**: two-stage payment flow (voucher upload → review → invoice upload → review → approved). Only meaningful when `userType === "member"`.
+- **Branch binding**: bind/unbind to professional branches (e.g., Vertebrate Paleontology, Palynology). Non-members and active members can both bind; `regular` users cannot.
+- **Conference registrations**: two-stage conference fee flow → submit forms → upload abstracts. Conference fees are user-type-aware via `getConferenceFee(confId)` — returns member or non-member price automatically.
 - **Notifications**: system notification bell in the top nav, with read/unread tracking.
 - All state is persisted per-user in `localStorage` using `paleo_*` prefixed keys.
 
@@ -55,8 +60,10 @@ Source of truth for domain data shared between pages and context — do NOT hard
 
 - `VALID_BRANCH_IDS` / `BRANCH_MAP` — valid branch IDs and their Chinese names
 - `CONFERENCE_BRANCH_MAP` — maps conference IDs to their parent branch IDs
+- `USER_TYPE` / `UserType` / `USER_TYPE_LABEL` — three-tier user identity: `regular` (普通用户, initial), `non_member` (非会员, path A), `member` (正式会员, path B)
 - `MEMBERSHIP_STATUS` / `CONFERENCE_STATUS` — two-stage payment/review status enums (unpaid → voucher_submitted → invoice_pending → ... → confirmed/active)
 - `MEMBERSHIP_FEE_CONFIG` — membership fee amounts (standard: ¥200, student: ¥100, corporate: ¥5000)
+- `CONFERENCE_FEE_MEMBER` — member-price map per conference ID; non-member price is auto-computed as member × 1.1 via `getConferenceFee(confId, userType)`
 - Status label/color maps (`CONFERENCE_STATUS_LABEL`, `MEMBERSHIP_STATUS_LABEL`, etc.) for consistent UI rendering
 - `INVOICE_GRACE_PERIOD_WORKDAYS` / `INVOICE_DEADLINE_WARNING_DAYS` — invoice deadline constants
 
@@ -78,8 +85,9 @@ The visual identity is documented in `ideas.md` and implemented in `index.css`:
 ### Component organization
 
 - `client/src/components/ui/` — shadcn/ui primitives (button, card, dialog, select, table, etc.). Do NOT duplicate — extend these.
-- `client/src/components/PartyLayout.tsx` — global layout shell used by all pages
+- `client/src/components/PartyLayout.tsx` — global layout shell used by all pages. Integrates `MembershipChoiceDialog` on first login.
 - `client/src/components/LoginJoinDialog.tsx` — auth modal (login/register/forgot-password tabs)
+- `client/src/components/MembershipChoiceDialog.tsx` — first-login modal: user must choose "成为正式会员" (path B, payment required) or "作为非会员继续" (path A, no payment, higher conference fees)
 - `client/src/components/Map.tsx` — Google Maps via Manus proxy (no API key needed). Provides `MapView` with `onMapReady` callback. Full Maps JS API (markers, places, geocoding, geometry, directions, layers) available through the proxy at `VITE_FRONTEND_FORGE_API_URL/v1/maps/proxy`.
 - `client/src/components/ManusDialog.tsx` — debug/runtime dialog
 - `client/src/components/ErrorBoundary.tsx` — class-based React error boundary
