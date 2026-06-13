@@ -2,3 +2,27 @@ node_modules
 dist
 .vite
 *.local
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Logs
+*.log
+logs/
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# Package manager
+.npm/
