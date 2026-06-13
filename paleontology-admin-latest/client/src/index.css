@@ -1,0 +1,81 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-strata-blue-deep: #002B49;
+  --color-party-red: #C41E3A;
+  --color-party-red-dark: #8B0000;
+  --color-accent-gold: #D9C5A0;
+  --color-paper-bright: #FCFAF7;
+  --color-fossil-stone: #E5E1DA;
+}
+
+:root {
+  --primary: #002B49;
+  --primary-foreground: #ffffff;
+  --background: #FCFAF7;
+  --foreground: #1a1c1e;
+  --card: #ffffff;
+  --card-foreground: #1a1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1c1e;
+  --secondary: #715a3e;
+  --secondary-foreground: #ffffff;
+  --muted: #f4f3f6;
+  --muted-foreground: #42474d;
+  --accent: #fdddba;
+  --accent-foreground: #002b49;
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+  --border: #E5E1DA;
+  --input: #E5E1DA;
+  --ring: #406182;
+  --radius: 0.25rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased min-h-screen flex flex-col;
+  }
+}
+
+@layer utilities {
+  .party-gradient {
+    background: linear-gradient(135deg, #C41E3A 0%, #8B0000 100%);
+  }
+  .party-card-border {
+    border-top: 3px solid #C41E3A;
+  }
+  .party-text {
+    color: #C41E3A;
+  }
+}
