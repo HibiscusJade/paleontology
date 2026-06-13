@@ -378,6 +378,7 @@ function buildReviewItem(
     targetName: confId || "未知",
     amount: 0,
     voucherUrl: "",
+    submitTime: "",
     status: "unknown",
     confId,
   };
