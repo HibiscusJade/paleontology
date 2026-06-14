@@ -1,7 +1,12 @@
 import { Router, Route, Switch } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
 import { AdminProvider } from "@/contexts/AdminContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+
+// Tree-shaken at build time: when VITE_HASH_ROUTING is not set,
+// the entire hash-routing code path is dead-code eliminated.
+const USE_HASH = import.meta.env.VITE_HASH_ROUTING === "true";
 import AdminLayout from "@/components/AdminLayout";
 import LoginPage from "@/pages/admin/LoginPage";
 import Dashboard from "@/pages/admin/Dashboard";
@@ -18,70 +23,76 @@ function WrappedPage({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const routes = (
+    <Switch>
+      <Route path="/admin/login" component={LoginPage} />
+      <Route path="/admin/dashboard">
+        {() => (
+          <WrappedPage>
+            <Dashboard />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/audit">
+        {() => (
+          <WrappedPage>
+            <AuditWorkbench />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/members">
+        {() => (
+          <WrappedPage>
+            <MemberManagement />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/conferences">
+        {() => (
+          <WrappedPage>
+            <ConferenceManagement />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/statistics">
+        {() => (
+          <WrappedPage>
+            <Statistics />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/finance">
+        {() => (
+          <WrappedPage>
+            <FinanceRecords />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/branches">
+        {() => (
+          <WrappedPage>
+            <BranchManagement />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/">
+        {() => <LoginPage />}
+      </Route>
+      <Route>
+        <NotFound />
+      </Route>
+    </Switch>
+  );
+
   return (
     <AdminProvider>
       <TooltipProvider>
         <Toaster />
-        <Router>
-          <Switch>
-            <Route path="/admin/login" component={LoginPage} />
-            <Route path="/admin/dashboard">
-              {() => (
-                <WrappedPage>
-                  <Dashboard />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/admin/audit">
-              {() => (
-                <WrappedPage>
-                  <AuditWorkbench />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/admin/members">
-              {() => (
-                <WrappedPage>
-                  <MemberManagement />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/admin/conferences">
-              {() => (
-                <WrappedPage>
-                  <ConferenceManagement />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/admin/statistics">
-              {() => (
-                <WrappedPage>
-                  <Statistics />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/admin/finance">
-              {() => (
-                <WrappedPage>
-                  <FinanceRecords />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/admin/branches">
-              {() => (
-                <WrappedPage>
-                  <BranchManagement />
-                </WrappedPage>
-              )}
-            </Route>
-            <Route path="/">
-              {() => <LoginPage />}
-            </Route>
-            <Route>
-              <NotFound />
-            </Route>
-          </Switch>
-        </Router>
+        {USE_HASH ? (
+          <Router hook={useHashLocation}>{routes}</Router>
+        ) : (
+          <Router>{routes}</Router>
+        )}
       </TooltipProvider>
     </AdminProvider>
   );

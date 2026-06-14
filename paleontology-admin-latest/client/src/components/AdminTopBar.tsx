@@ -1,4 +1,4 @@
-import { Bell, LogOut, User } from "lucide-react";
+import { Bell, LogOut, User, ExternalLink } from "lucide-react";
 import { useAdmin } from "@/contexts/AdminContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,14 @@ export default function AdminTopBar() {
           中国古生物学会
         </span>
         <span className="text-white/60 text-sm">· 管理后台</span>
+        <a
+          href="/"
+          className="ml-4 text-white/50 hover:text-white text-xs flex items-center gap-1 transition-colors"
+          title="返回学会主站"
+        >
+          <ExternalLink className="h-3 w-3" />
+          返回主站
+        </a>
       </div>
 
       <div className="flex items-center gap-4">
