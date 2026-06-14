@@ -12,6 +12,7 @@ import LoginPage from "@/pages/admin/LoginPage";
 import Dashboard from "@/pages/admin/Dashboard";
 import AuditWorkbench from "@/pages/admin/AuditWorkbench";
 import MemberManagement from "@/pages/admin/MemberManagement";
+import NonMemberManagement from "@/pages/admin/NonMemberManagement";
 import ConferenceManagement from "@/pages/admin/ConferenceManagement";
 import Statistics from "@/pages/admin/Statistics";
 import FinanceRecords from "@/pages/admin/FinanceRecords";
@@ -40,7 +41,14 @@ export default function App() {
           </WrappedPage>
         )}
       </Route>
-      <Route path="/admin/members">
+      <Route path="/admin/users/non-members">
+        {() => (
+          <WrappedPage>
+            <NonMemberManagement />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/users/members">
         {() => (
           <WrappedPage>
             <MemberManagement />

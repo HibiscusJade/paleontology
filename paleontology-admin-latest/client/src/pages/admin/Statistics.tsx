@@ -24,7 +24,7 @@ function SuperAdminStatistics({ stats }: { stats: DashboardStats }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-strata-blue-deep">数据统计总览</h2>
-          <p className="text-sm text-muted-foreground">会员、分会和会议的综合统计数据</p>
+          <p className="text-sm text-muted-foreground">用户、分会和会议的综合统计数据</p>
         </div>
         <Button variant="outline" onClick={handleExport}>
           <Download className="h-4 w-4 mr-2" />
@@ -35,11 +35,11 @@ function SuperAdminStatistics({ stats }: { stats: DashboardStats }) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">会员总数</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">用户总数</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-strata-blue-deep">{stats.totalMembers}</div>
+            <div className="text-2xl font-bold text-strata-blue-deep">{stats.totalUsers}</div>
           </CardContent>
         </Card>
         <Card>
@@ -74,18 +74,18 @@ function SuperAdminStatistics({ stats }: { stats: DashboardStats }) {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">分会会员分布 (柱状图)</CardTitle>
-            <CardDescription>各分会绑定的会员数量</CardDescription>
+            <CardTitle className="text-base">分会用户分布 (条形图)</CardTitle>
+            <CardDescription>各分会绑定的用户数量</CardDescription>
           </CardHeader>
           <CardContent>
             {stats.branchMemberCounts && stats.branchMemberCounts.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={stats.branchMemberCounts} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} height={80} tick={{ fontSize: 10 }} />
-                  <YAxis />
+              <ResponsiveContainer width="100%" height={Math.max(320, stats.branchMemberCounts.length * 52)}>
+                <BarChart data={stats.branchMemberCounts} layout="vertical" margin={{ top: 5, right: 50, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="count" name="会员数" fill="#002B49" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="用户数" fill="#002B49" radius={[0, 4, 4, 0]} label={{ position: "right", fontSize: 14, fontWeight: 600 }} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -96,8 +96,8 @@ function SuperAdminStatistics({ stats }: { stats: DashboardStats }) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">分会会员分布 (饼图)</CardTitle>
-            <CardDescription>各分会会员占比</CardDescription>
+            <CardTitle className="text-base">分会用户分布 (饼图)</CardTitle>
+            <CardDescription>各分会用户占比</CardDescription>
           </CardHeader>
           <CardContent>
             {stats.branchMemberCounts && stats.branchMemberCounts.some((d) => d.count > 0) ? (
@@ -198,7 +198,7 @@ function BranchAdminStatistics() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-strata-blue-deep">{BRANCH_MAP[adminBranchId] || adminBranchId} - 数据统计</h2>
-          <p className="text-sm text-muted-foreground">分会会议和会员统计</p>
+          <p className="text-sm text-muted-foreground">分会会议和用户统计</p>
         </div>
         <Button variant="outline" onClick={handleExport}>
           <Download className="h-4 w-4 mr-2" />
@@ -227,11 +227,11 @@ function BranchAdminStatistics() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">分会会员数</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">分会用户数</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-strata-blue-deep">{stats.branchMemberCount}</div>
+            <div className="text-2xl font-bold text-strata-blue-deep">{stats.branchUserCount}</div>
           </CardContent>
         </Card>
       </div>

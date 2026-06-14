@@ -19,10 +19,12 @@ const SENTINEL_ALL = "__all__";
 
 const STATUS_OPTIONS = [
   { value: SENTINEL_ALL, label: "全部状态" },
-  ...Object.entries(MEMBERSHIP_STATUS).map(([key, val]) => ({
-    value: val,
-    label: MEMBERSHIP_STATUS_LABEL[val] || key,
-  })),
+  ...Object.entries(MEMBERSHIP_STATUS)
+    .filter(([, val]) => val !== MEMBERSHIP_STATUS.NOT_MEMBER)
+    .map(([key, val]) => ({
+      value: val,
+      label: MEMBERSHIP_STATUS_LABEL[val] || key,
+    })),
 ];
 
 const BRANCH_OPTIONS = [
@@ -70,7 +72,7 @@ function MemberDetailSheet({
       <SheetContent className="w-[480px] sm:max-w-[480px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>会员详情</SheetTitle>
-          <SheetDescription>{email}</SheetDescription>
+          <SheetDescription>会员邮箱：{email}</SheetDescription>
         </SheetHeader>
         {detail ? (
           <div className="space-y-6 py-4">
@@ -170,7 +172,11 @@ export default function MemberManagement() {
     branchId: branchFilter !== SENTINEL_ALL ? branchFilter : undefined,
   }), [search, statusFilter, branchFilter]);
 
-  const members = useMemo(() => getAllMembers(filters), [getAllMembers, filters]);
+  const members = useMemo(() => {
+    const all = getAllMembers(filters);
+    // Always exclude non-members — they are managed on the NonMemberManagement page
+    return all.filter(m => m.membershipStatus !== MEMBERSHIP_STATUS.NOT_MEMBER);
+  }, [getAllMembers, filters]);
 
   const totalPages = Math.max(1, Math.ceil(members.length / ITEMS_PER_PAGE));
   const paginatedMembers = members.slice(
@@ -217,8 +223,8 @@ export default function MemberManagement() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-strata-blue-deep">会员管理</h1>
-        <p className="text-muted-foreground mt-1">管理学会会员信息、状态和权限</p>
+        <h1 className="text-2xl font-bold text-strata-blue-deep">会员用户管理</h1>
+        <p className="text-muted-foreground mt-1">管理已入会会员的缴费状态、会员资格和权限</p>
       </div>
 
       <Card>
@@ -269,7 +275,7 @@ export default function MemberManagement() {
           {members.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
               <AlertCircle className="h-8 w-8" />
-              <span>暂无会员数据</span>
+              <span>暂无匹配的会员数据</span>
             </div>
           ) : (
             <>

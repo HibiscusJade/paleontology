@@ -40,7 +40,7 @@ export default defineConfig({
     target: "es2020",
     sourcemap: false,
     rollupOptions: {
-      input: path.resolve(PROJECT_ROOT, "client", "singlefile.html"),
+      input: path.resolve(PROJECT_ROOT, "client", "中国古生物学会_官网.html"),
     },
   },
 });

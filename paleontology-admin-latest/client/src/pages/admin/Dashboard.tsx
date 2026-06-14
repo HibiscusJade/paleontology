@@ -67,10 +67,10 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="会员总数" value={stats.totalMembers} icon={Users} delay={0} />
-        <StatCard title="活跃会员" value={stats.activeMembers} icon={LayoutDashboard} delay={0.1} />
-        <StatCard title="待审核" value={stats.pendingReviews} icon={ClipboardCheck} delay={0.2} />
-        <StatCard title="进行中会议" value={stats.activeConferences} icon={Calendar} delay={0.3} />
+        <StatCard title="用户总数" value={stats.totalUsers} icon={Users} delay={0} />
+        <StatCard title="非会员" value={stats.nonMemberCount} icon={Users} delay={0.1} />
+        <StatCard title="会员" value={stats.memberCount} icon={LayoutDashboard} delay={0.15} />
+        <StatCard title="活跃会员" value={stats.activeMembers} icon={LayoutDashboard} delay={0.2} />
       </div>
 
       <motion.div
@@ -80,18 +80,18 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
       >
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">分会会员分布</CardTitle>
-            <CardDescription>各分会绑定会员数量统计</CardDescription>
+            <CardTitle className="text-lg">分会用户分布</CardTitle>
+            <CardDescription>各分会绑定用户数量统计</CardDescription>
           </CardHeader>
           <CardContent>
             {stats.branchMemberCounts && stats.branchMemberCounts.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={stats.branchMemberCounts} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} height={80} tick={{ fontSize: 11 }} />
-                  <YAxis />
+              <ResponsiveContainer width="100%" height={Math.max(320, stats.branchMemberCounts.length * 52)}>
+                <BarChart data={stats.branchMemberCounts} layout="vertical" margin={{ top: 5, right: 50, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="count" name="会员数" fill="#002B49" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="用户数" fill="#002B49" radius={[0, 4, 4, 0]} label={{ position: "right", fontSize: 14, fontWeight: 600 }} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -166,7 +166,7 @@ function BranchAdminView() {
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard title="分会会议" value={stats.branchConferences} icon={Calendar} delay={0} />
         <StatCard title="报名人数" value={stats.branchRegistrations} icon={Users} delay={0.1} />
-        <StatCard title="分会会员" value={stats.branchMemberCount} icon={LayoutDashboard} delay={0.2} />
+        <StatCard title="分会用户" value={stats.branchUserCount} icon={LayoutDashboard} delay={0.2} />
       </div>
 
       <motion.div
