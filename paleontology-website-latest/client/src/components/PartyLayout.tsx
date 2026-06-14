@@ -198,7 +198,7 @@ export default function PartyLayout({ children, currentPageTitle, breadcrumbs }:
                 </div>
               ) : (
                 <>
-                  <button 
+                  <button
                     onClick={() => { setDialogOpenTab("login"); setDialogOpen(true); }}
                     className="text-white opacity-90 hover:opacity-100 font-label-caps text-xs flex items-center gap-1 transition-opacity"
                   >
@@ -206,6 +206,14 @@ export default function PartyLayout({ children, currentPageTitle, breadcrumbs }:
                   </button>
                 </>
               )}
+              {/* 管理后台入口 */}
+              <a
+                href="/admin/"
+                className="text-white/60 hover:text-accent-gold font-label-caps text-xs flex items-center gap-1 transition-colors ml-2"
+                title="管理后台"
+              >
+                <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span> 管理后台
+              </a>
             </div>
             {/* 加入会员按钮 - 未登录或已登录但非会员时显示，与搜索框同级 */}
             {(!isLoggedIn || societyMembership.status !== "active") && (

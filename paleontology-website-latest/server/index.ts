@@ -16,9 +16,29 @@ async function startServer() {
       ? path.resolve(__dirname, "public")
       : path.resolve(__dirname, "..", "dist", "public");
 
+  const adminPath = path.join(staticPath, "admin");
+
+  // ── Admin backend (served at /admin/) ─────────────────────────────────
+  // Serve admin static assets (JS, CSS, etc.)
+  app.use("/admin", express.static(adminPath));
+
+  // Admin SPA fallback: serve admin/index.html for /admin/* routes
+  app.get("/admin*", (_req, res, next) => {
+    // Don't intercept API or static asset requests
+    if (_req.path.startsWith("/admin/assets")) {
+      return next();
+    }
+    const adminIndex = path.join(adminPath, "index.html");
+    res.sendFile(adminIndex, (err) => {
+      if (err) next(); // admin dir may not exist yet, fall through
+    });
+  });
+
+  // ── Main website ──────────────────────────────────────────────────────
+  // Serve main site static files
   app.use(express.static(staticPath));
 
-  // Handle client-side routing - serve index.html for all routes
+  // Main site SPA fallback: serve index.html for all other routes
   app.get("*", (_req, res) => {
     res.sendFile(path.join(staticPath, "index.html"));
   });
@@ -27,6 +47,8 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`  Main site: http://localhost:${port}/`);
+    console.log(`  Admin:     http://localhost:${port}/admin/`);
   });
 }
 
