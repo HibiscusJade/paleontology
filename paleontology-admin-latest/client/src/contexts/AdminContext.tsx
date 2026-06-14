@@ -337,10 +337,10 @@ function buildReviewItem(
   type: "society_fee" | "conference_fee",
   confId?: string
 ): ReviewItem {
-  const membershipKey = `paleo_society_membership_${email}`;
+  const membershipKey = `paleo_admin_society_membership_${email}`;
   const storedMembership = localStorage.getItem(membershipKey);
   const membership = storedMembership ? JSON.parse(storedMembership) : null;
-  const confsKey = `paleo_confs_${email}`;
+  const confsKey = `paleo_admin_confs_${email}`;
   const storedConfs = localStorage.getItem(confsKey);
   const confRegs = storedConfs ? JSON.parse(storedConfs) : {};
 
@@ -1023,33 +1023,33 @@ const SEED_USER_TYPES: Record<string, string> = {
 
 function seedDemoData() {
   // Only seed if no user data exists yet
-  if (localStorage.getItem("paleo_all_users")) return;
+  if (localStorage.getItem("paleo_admin_all_users")) return;
 
   // 1. Write user DB (credentials)
-  localStorage.setItem("paleo_user_db", JSON.stringify(SEED_USERS));
+  localStorage.setItem("paleo_admin_user_db", JSON.stringify(SEED_USERS));
 
   // 2. Write all users list (without passwords)
   const allUsers = SEED_USERS.map(({ password, ...u }) => u);
-  localStorage.setItem("paleo_all_users", JSON.stringify(allUsers));
+  localStorage.setItem("paleo_admin_all_users", JSON.stringify(allUsers));
 
   // 3. Write membership data per user
   for (const [email, membership] of Object.entries(SEED_MEMBERSHIPS)) {
-    localStorage.setItem(`paleo_society_membership_${email}`, JSON.stringify(membership));
+    localStorage.setItem(`paleo_admin_society_membership_${email}`, JSON.stringify(membership));
   }
 
   // 4. Write branch bindings
   for (const [email, branches] of Object.entries(SEED_BRANCH_BINDINGS)) {
-    localStorage.setItem(`paleo_bound_branches_${email}`, JSON.stringify(branches));
+    localStorage.setItem(`paleo_admin_bound_branches_${email}`, JSON.stringify(branches));
   }
 
   // 5. Write user types
   for (const [email, userType] of Object.entries(SEED_USER_TYPES)) {
-    localStorage.setItem(`paleo_user_type_${email}`, userType);
+    localStorage.setItem(`paleo_admin_user_type_${email}`, userType);
   }
 
   // 6. Write choice-made flag so users don't see the choice dialog
   for (const email of Object.keys(SEED_USER_TYPES)) {
-    localStorage.setItem(`paleo_choice_made_${email}`, "true");
+    localStorage.setItem(`paleo_admin_choice_made_${email}`, "true");
   }
 
   console.log(`[Admin] Seeded demo data: ${SEED_USERS.length} users across ${Object.keys(BRANCH_MAP).length} branches`);
@@ -1083,8 +1083,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!localStorage.getItem("paleo_admin_db")) {
       localStorage.setItem("paleo_admin_db", JSON.stringify(BUILT_IN_ADMINS));
     }
-    if (!localStorage.getItem("paleo_conferences_db")) {
-      localStorage.setItem("paleo_conferences_db", JSON.stringify(DEFAULT_CONFERENCES));
+    if (!localStorage.getItem("paleo_admin_conferences_db")) {
+      localStorage.setItem("paleo_admin_conferences_db", JSON.stringify(DEFAULT_CONFERENCES));
     }
     // Seed demo data so admin panel has realistic data on first load
     seedDemoData();
@@ -1197,11 +1197,11 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const buildReviewQueues = useCallback((): { vouchers: ReviewItem[]; invoices: ReviewItem[] } => {
     const vouchers: ReviewItem[] = [];
     const invoices: ReviewItem[] = [];
-    const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_all_users") || "[]");
+    const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
 
     for (const u of allUsers) {
       const email = u.email;
-      const membershipKey = `paleo_society_membership_${email}`;
+      const membershipKey = `paleo_admin_society_membership_${email}`;
       const stored = localStorage.getItem(membershipKey);
       if (stored) {
         const membership = JSON.parse(stored);
@@ -1214,7 +1214,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      const confsKey = `paleo_confs_${email}`;
+      const confsKey = `paleo_admin_confs_${email}`;
       const storedConfs = localStorage.getItem(confsKey);
       if (storedConfs) {
         const confRegs = JSON.parse(storedConfs);
@@ -1244,7 +1244,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const approveVoucher = useCallback(
     (targetEmail: string, type: "society_fee" | "conference_fee", confId?: string) => {
       if (type === "society_fee") {
-        const key = `paleo_society_membership_${targetEmail}`;
+        const key = `paleo_admin_society_membership_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const membership = JSON.parse(stored);
@@ -1252,7 +1252,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.invoiceDeadline = addWorkdays(new Date().toISOString().split("T")[0], 7);
         localStorage.setItem(key, JSON.stringify(membership));
       } else if (confId) {
-        const key = `paleo_confs_${targetEmail}`;
+        const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const confRegs = JSON.parse(stored);
@@ -1273,9 +1273,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         reviewer: adminUser?.email || "",
         time: new Date().toISOString(),
       };
-      const auditLog: AuditLogEntry[] = JSON.parse(localStorage.getItem("paleo_audit_log") || "[]");
+      const auditLog: AuditLogEntry[] = JSON.parse(localStorage.getItem("paleo_admin_audit_log") || "[]");
       auditLog.push(log);
-      localStorage.setItem("paleo_audit_log", JSON.stringify(auditLog));
+      localStorage.setItem("paleo_admin_audit_log", JSON.stringify(auditLog));
 
       addNotification({
         title: "初审已通过",
@@ -1291,7 +1291,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const rejectVoucher = useCallback(
     (targetEmail: string, type: "society_fee" | "conference_fee", reason: string, confId?: string) => {
       if (type === "society_fee") {
-        const key = `paleo_society_membership_${targetEmail}`;
+        const key = `paleo_admin_society_membership_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const membership = JSON.parse(stored);
@@ -1299,7 +1299,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.voucherRejectReason = reason;
         localStorage.setItem(key, JSON.stringify(membership));
       } else if (confId) {
-        const key = `paleo_confs_${targetEmail}`;
+        const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const confRegs = JSON.parse(stored);
@@ -1323,7 +1323,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const approveInvoice = useCallback(
     (targetEmail: string, type: "society_fee" | "conference_fee", confId?: string) => {
       if (type === "society_fee") {
-        const key = `paleo_society_membership_${targetEmail}`;
+        const key = `paleo_admin_society_membership_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const membership = JSON.parse(stored);
@@ -1331,7 +1331,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.expiryDate = new Date(new Date().getFullYear(), 11, 31).toISOString().split("T")[0];
         localStorage.setItem(key, JSON.stringify(membership));
       } else if (confId) {
-        const key = `paleo_confs_${targetEmail}`;
+        const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const confRegs = JSON.parse(stored);
@@ -1355,7 +1355,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const rejectInvoice = useCallback(
     (targetEmail: string, type: "society_fee" | "conference_fee", reason: string, confId?: string) => {
       if (type === "society_fee") {
-        const key = `paleo_society_membership_${targetEmail}`;
+        const key = `paleo_admin_society_membership_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const membership = JSON.parse(stored);
@@ -1363,7 +1363,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.invoiceRejectReason = reason;
         localStorage.setItem(key, JSON.stringify(membership));
       } else if (confId) {
-        const key = `paleo_confs_${targetEmail}`;
+        const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const confRegs = JSON.parse(stored);
@@ -1439,7 +1439,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const extendDeadline = useCallback(
     (targetEmail: string, type: "society_fee" | "conference_fee", newDeadline: string, reason: string, confId?: string) => {
       if (type === "society_fee") {
-        const key = `paleo_society_membership_${targetEmail}`;
+        const key = `paleo_admin_society_membership_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const membership = JSON.parse(stored);
@@ -1447,7 +1447,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.invoiceExtendedDeadline = newDeadline;
         localStorage.setItem(key, JSON.stringify(membership));
       } else if (confId) {
-        const key = `paleo_confs_${targetEmail}`;
+        const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
         if (!stored) return;
         const confRegs = JSON.parse(stored);
@@ -1474,16 +1474,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getAllMembers = useCallback((filters?: MemberFilter): MemberRecord[] => {
     const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string; memberType?: string }[] =
-      JSON.parse(localStorage.getItem("paleo_all_users") || "[]");
+      JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
 
     const members: MemberRecord[] = allUsers.map(u => {
-      const key = `paleo_society_membership_${u.email}`;
+      const key = `paleo_admin_society_membership_${u.email}`;
       const stored = localStorage.getItem(key);
       const membership = stored ? JSON.parse(stored) : { status: "not_member", history: [] };
-      const branchesKey = `paleo_bound_branches_${u.email}`;
+      const branchesKey = `paleo_admin_bound_branches_${u.email}`;
       const storedBranches = localStorage.getItem(branchesKey);
       const boundBranches: string[] = storedBranches ? JSON.parse(storedBranches) : [];
-      const typeKey = `paleo_user_type_${u.email}`;
+      const typeKey = `paleo_admin_user_type_${u.email}`;
       const userType = localStorage.getItem(typeKey) || "regular";
 
       return {
@@ -1519,10 +1519,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const members = getAllMembers();
     const member = members.find(m => m.email === email);
     if (!member) return null;
-    const key = `paleo_society_membership_${email}`;
+    const key = `paleo_admin_society_membership_${email}`;
     const stored = localStorage.getItem(key);
     const membership = stored ? JSON.parse(stored) : { history: [] };
-    const notifsKey = `paleo_notifs_${email}`;
+    const notifsKey = `paleo_admin_notifs_${email}`;
     const storedNotifs = localStorage.getItem(notifsKey);
     const userNotifs: AdminNotification[] = storedNotifs ? JSON.parse(storedNotifs) : [];
     return {
@@ -1533,7 +1533,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [getAllMembers]);
 
   const toggleMemberDisabled = useCallback((email: string) => {
-    const key = `paleo_society_membership_${email}`;
+    const key = `paleo_admin_society_membership_${email}`;
     const stored = localStorage.getItem(key);
     if (!stored) { toast.error("未找到该会员记录"); return; }
     const membership = JSON.parse(stored);
@@ -1552,7 +1552,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [triggerRefresh]);
 
   const manualActivateMember = useCallback((email: string) => {
-    const key = `paleo_society_membership_${email}`;
+    const key = `paleo_admin_society_membership_${email}`;
     const stored = localStorage.getItem(key);
     const membership = stored ? JSON.parse(stored) : { status: "not_member", history: [] };
     membership.status = MEMBERSHIP_STATUS.ACTIVE;
@@ -1567,13 +1567,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ==========================================
 
   const getAllConferences = useCallback((): ConferenceRecord[] => {
-    const stored = localStorage.getItem("paleo_conferences_db");
+    const stored = localStorage.getItem("paleo_admin_conferences_db");
     const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
-    const allUsers: { email: string }[] = JSON.parse(localStorage.getItem("paleo_all_users") || "[]");
+    const allUsers: { email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
     return confs.map((c: ConferenceRecord) => {
       let count = 0;
       for (const u of allUsers) {
-        const confsKey = `paleo_confs_${u.email}`;
+        const confsKey = `paleo_admin_confs_${u.email}`;
         const storedConfs = localStorage.getItem(confsKey);
         if (!storedConfs) continue;
         const regs = JSON.parse(storedConfs);
@@ -1592,7 +1592,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const createConference = useCallback((data: ConferenceData) => {
-    const stored = localStorage.getItem("paleo_conferences_db");
+    const stored = localStorage.getItem("paleo_admin_conferences_db");
     const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
     const newConf: ConferenceRecord = {
       ...data,
@@ -1601,22 +1601,22 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       registrations: 0,
     };
     confs.push(newConf);
-    localStorage.setItem("paleo_conferences_db", JSON.stringify(confs));
+    localStorage.setItem("paleo_admin_conferences_db", JSON.stringify(confs));
     // Sync fee config
-    const feeMap = JSON.parse(localStorage.getItem("paleo_conference_fee_config") || "{}");
+    const feeMap = JSON.parse(localStorage.getItem("paleo_admin_conference_fee_config") || "{}");
     feeMap[newConf.id] = data.memberFee;
-    localStorage.setItem("paleo_conference_fee_config", JSON.stringify(feeMap));
+    localStorage.setItem("paleo_admin_conference_fee_config", JSON.stringify(feeMap));
     toast.success("会议创建成功");
     triggerRefresh();
   }, [triggerRefresh]);
 
   const updateConference = useCallback((id: string, data: ConferenceData) => {
-    const stored = localStorage.getItem("paleo_conferences_db");
+    const stored = localStorage.getItem("paleo_admin_conferences_db");
     const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
     const idx = confs.findIndex((c: ConferenceRecord) => c.id === id);
     if (idx >= 0) {
       confs[idx] = { ...confs[idx], ...data, branchName: BRANCH_MAP[data.branchId] || data.branchId };
-      localStorage.setItem("paleo_conferences_db", JSON.stringify(confs));
+      localStorage.setItem("paleo_admin_conferences_db", JSON.stringify(confs));
       toast.success("会议更新成功");
       triggerRefresh();
     }
@@ -1664,7 +1664,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getFinanceDashboardStats = useCallback((): FinanceDashboardStats => {
     const { vouchers, invoices } = buildReviewQueues();
-    const auditLog: AuditLogEntry[] = JSON.parse(localStorage.getItem("paleo_audit_log") || "[]");
+    const auditLog: AuditLogEntry[] = JSON.parse(localStorage.getItem("paleo_admin_audit_log") || "[]");
     const today = new Date().toISOString().split("T")[0];
     const todayActions = auditLog.filter(l => l.time.startsWith(today));
     return {
@@ -1683,10 +1683,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ==========================================
 
   const getAllPaymentRecords = useCallback((): ReviewItem[] => {
-    const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_all_users") || "[]");
+    const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
     const records: ReviewItem[] = [];
     for (const u of allUsers) {
-      const key = `paleo_society_membership_${u.email}`;
+      const key = `paleo_admin_society_membership_${u.email}`;
       const stored = localStorage.getItem(key);
       if (stored) {
         const membership = JSON.parse(stored);
@@ -1694,7 +1694,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           records.push(buildReviewItem(u.email, u, "society_fee"));
         }
       }
-      const confsKey = `paleo_confs_${u.email}`;
+      const confsKey = `paleo_admin_confs_${u.email}`;
       const storedConfs = localStorage.getItem(confsKey);
       if (storedConfs) {
         const confRegs = JSON.parse(storedConfs);
@@ -1713,7 +1713,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ==========================================
 
   const getAllBranches = useCallback((): BranchRecord[] => {
-    const stored = localStorage.getItem("paleo_branches_db");
+    const stored = localStorage.getItem("paleo_admin_branches_db");
     if (stored) return JSON.parse(stored);
     const members = getAllMembers();
     return Object.entries(BRANCH_MAP).map(([id, name]) => ({
@@ -1730,7 +1730,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const idx = branches.findIndex(b => b.id === id);
     if (idx >= 0) {
       branches[idx] = { ...branches[idx], ...data };
-      localStorage.setItem("paleo_branches_db", JSON.stringify(branches));
+      localStorage.setItem("paleo_admin_branches_db", JSON.stringify(branches));
       toast.success("分会信息已更新");
       triggerRefresh();
     }
@@ -1741,7 +1741,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const idx = branches.findIndex(b => b.id === id);
     if (idx >= 0) {
       branches[idx].disabled = !branches[idx].disabled;
-      localStorage.setItem("paleo_branches_db", JSON.stringify(branches));
+      localStorage.setItem("paleo_admin_branches_db", JSON.stringify(branches));
       toast.success(branches[idx].disabled ? "分会已禁用" : "分会已启用");
       triggerRefresh();
     }

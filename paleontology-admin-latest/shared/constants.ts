@@ -16,7 +16,7 @@ export const MEMBERSHIP_FEE_CONFIG = {
 
 /** 原型阶段从 localStorage 读取配置，fallback 到默认值 */
 export function getMembershipFee(memberType: string = "standard"): number {
-  const stored = localStorage.getItem("paleo_membership_fee_config");
+  const stored = localStorage.getItem("paleo_admin_membership_fee_config");
   if (stored) {
     try {
       const config = JSON.parse(stored);

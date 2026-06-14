@@ -7,7 +7,6 @@
     "dev": "vite --host",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "build:singlefile": "npx tsx scripts/download-fonts.ts && vite build --config vite.singlefile.config.ts --mode singlefile",
-    "build:combined": "pwsh scripts/build-combined.ps1",
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
