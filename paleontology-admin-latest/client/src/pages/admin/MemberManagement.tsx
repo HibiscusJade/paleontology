@@ -15,8 +15,10 @@ import { MEMBERSHIP_STATUS, MEMBERSHIP_STATUS_LABEL, BRANCH_MAP } from "@shared/
 
 const ITEMS_PER_PAGE = 10;
 
+const SENTINEL_ALL = "__all__";
+
 const STATUS_OPTIONS = [
-  { value: "", label: "全部状态" },
+  { value: SENTINEL_ALL, label: "全部状态" },
   ...Object.entries(MEMBERSHIP_STATUS).map(([key, val]) => ({
     value: val,
     label: MEMBERSHIP_STATUS_LABEL[val] || key,
@@ -24,7 +26,7 @@ const STATUS_OPTIONS = [
 ];
 
 const BRANCH_OPTIONS = [
-  { value: "", label: "全部分会" },
+  { value: SENTINEL_ALL, label: "全部分会" },
   ...Object.entries(BRANCH_MAP).map(([id, name]) => ({
     value: id,
     label: name,
@@ -152,8 +154,8 @@ export default function MemberManagement() {
   const { getAllMembers, toggleMemberDisabled, manualActivateMember } = useAdmin();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [branchFilter, setBranchFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(SENTINEL_ALL);
+  const [branchFilter, setBranchFilter] = useState(SENTINEL_ALL);
   const [currentPage, setCurrentPage] = useState(1);
   const [detailEmail, setDetailEmail] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -164,8 +166,8 @@ export default function MemberManagement() {
 
   const filters = useMemo(() => ({
     search: search || undefined,
-    status: statusFilter || undefined,
-    branchId: branchFilter || undefined,
+    status: statusFilter !== SENTINEL_ALL ? statusFilter : undefined,
+    branchId: branchFilter !== SENTINEL_ALL ? branchFilter : undefined,
   }), [search, statusFilter, branchFilter]);
 
   const members = useMemo(() => getAllMembers(filters), [getAllMembers, filters]);
