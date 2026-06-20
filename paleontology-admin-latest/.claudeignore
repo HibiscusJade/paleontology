@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+
+# Generated files
+client/src/generated/
+
+# Logs
+logs/
+*.log
+
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Environment
+.env*
+!.env.example
+
+# Binary/documents (not readable by Claude)
+*.zip
+*.tgz
+*.tar.gz
+*.gif
+*.ico
+*.webp
+*.mp4
+
+# Misc
+tmp/
+temp/

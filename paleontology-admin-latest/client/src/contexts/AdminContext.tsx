@@ -1,12 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import {
   type MembershipStatus,
   type ConferenceStatus,
+  type ConferenceFeeConfig,
+  CONFERENCE_FEE_TYPE,
+  type ConferenceFeeType,
   MEMBERSHIP_STATUS,
   CONFERENCE_STATUS,
   BRANCH_MAP,
+  ALL_SOCIETY_UNITS,
   VALID_BRANCH_IDS,
+  CONFERENCE_FEE_TYPE_LABEL,
+  ACCOMMODATION_TYPE_LABEL,
 } from "@shared/constants";
 
 // ============================================================================
@@ -56,6 +64,32 @@ export interface ReviewItem {
   confId?: string;
 }
 
+// Phase 6: 入会申请审核
+export interface MembershipAppRecord {
+  id: string;
+  userEmail: string;
+  userName: string;
+  applicationFileUrl: string;
+  applicationFileName: string;
+  submitTime: string;
+  status: string;   // application_submitted
+  rejectReason?: string;
+}
+
+// Phase 6: 退会申请审核
+export interface WithdrawalAppRecord {
+  id: string;
+  userEmail: string;
+  userName: string;
+  membershipStatus: string;
+  expiryDate?: string;
+  applicationFileUrl: string;
+  applicationFileName: string;
+  submitTime: string;
+  status: string;   // withdrawal_submitted
+  rejectReason?: string;
+}
+
 export interface MemberRecord {
   email: string;
   name: string;
@@ -89,6 +123,14 @@ export interface MemberDetail extends MemberRecord {
     status: string;
   }[];
   notifications: AdminNotification[];
+  // Phase 6: 入会/退会申请书
+  membershipAppFileUrl?: string;
+  membershipAppFileName?: string;
+  membershipAppStatus?: string;
+  membershipAppRejectReason?: string;
+  withdrawalAppFileUrl?: string;
+  withdrawalAppFileName?: string;
+  withdrawalAppStatus?: string;
 }
 
 export interface ConferenceRecord {
@@ -101,8 +143,20 @@ export interface ConferenceRecord {
   location: string;
   memberFee: number;
   nonMemberFee: number;
+  // Phase 1: 四类会议费配置
+  feeConfig?: ConferenceFeeConfig;
+  // Phase 2: 文件管理
+  stampedNoticeUrl?: string;
+  stampedNoticeName?: string;
+  abstractTemplateUrl?: string;
+  abstractTemplateName?: string;
   paymentDeadline: string;
   abstractDeadline: string;
+  // Phase 4: 住宿/野外截止时间
+  accommodationDeadline?: string;
+  fieldTripDeadline?: string;
+  // Phase 4: 野外路线配置
+  fieldTripRoutes?: { id: string; phase: "pre" | "during" | "post"; name: string; order: number }[];
   status: "draft" | "published";
   sessions: { id: string; name: string }[];
   registrations: number;
@@ -114,10 +168,24 @@ export interface ConferenceData {
   startDate: string;
   endDate: string;
   location: string;
-  memberFee: number;
-  nonMemberFee: number;
+  /** @deprecated Phase 1 起请使用 feeConfig */
+  memberFee?: number;
+  /** @deprecated Phase 1 起请使用 feeConfig */
+  nonMemberFee?: number;
+  // Phase 1: 四类会议费配置
+  feeConfig?: ConferenceFeeConfig;
+  // Phase 2: 文件管理
+  stampedNoticeUrl?: string;
+  stampedNoticeName?: string;
+  abstractTemplateUrl?: string;
+  abstractTemplateName?: string;
   paymentDeadline: string;
   abstractDeadline: string;
+  // Phase 4: 住宿/野外截止时间
+  accommodationDeadline?: string;
+  fieldTripDeadline?: string;
+  // Phase 4: 野外路线配置
+  fieldTripRoutes?: { id: string; phase: "pre" | "during" | "post"; name: string; order: number }[];
   sessions: { id: string; name: string }[];
   status: "draft" | "published";
 }
@@ -135,6 +203,75 @@ export interface BranchData {
   name?: string;
   description?: string;
   logo?: string;
+}
+
+// Phase 3: 统计类型
+
+export interface FeeBreakdownEntry {
+  count: number;
+  amount: number;
+}
+
+export interface FeeBreakdown {
+  studentMember: FeeBreakdownEntry;
+  nonStudentMember: FeeBreakdownEntry;
+  studentNonMember: FeeBreakdownEntry;
+  nonStudentNonMember: FeeBreakdownEntry;
+}
+
+export interface GlobalStats {
+  totalUsers: number;
+  totalMembers: number;
+  totalNonMembers: number;
+  studentMembers: number;
+  nonStudentMembers: number;
+  studentNonMembers: number;
+  nonStudentNonMembers: number;
+  totalMembershipFee: number;
+  studentMembershipFeeAmount: number;
+  studentMembershipFeeCount: number;
+  nonStudentMembershipFeeAmount: number;
+  nonStudentMembershipFeeCount: number;
+  totalConferenceFee: number;
+  perSocietyConferenceFee: Record<string, number>;
+}
+
+export interface SocietyStats {
+  societyName: string;
+  totalAttendees: number;
+  totalMembers: number;
+  totalNonMembers: number;
+  studentMembers: number;
+  nonStudentMembers: number;
+  studentNonMembers: number;
+  nonStudentNonMembers: number;
+  totalConferenceFee: number;
+  feeBreakdown: FeeBreakdown;
+}
+
+export interface ConferenceStats {
+  confName: string;
+  societyName: string;
+  totalAttendees: number;
+  totalConferenceFee: number;
+  totalReports: number;
+  oralReports: number;
+  posterReports: number;
+  totalMembers: number;
+  totalNonMembers: number;
+  studentMembers: number;
+  nonStudentMembers: number;
+  studentNonMembers: number;
+  nonStudentNonMembers: number;
+  feeBreakdown: FeeBreakdown;
+  accommodation: {
+    totalRooms: number;
+    maleSingle: number;
+    maleDouble: number;
+    femaleSingle: number;
+    femaleDouble: number;
+  };
+  fieldTrips: Record<string, { total: number; male: number; female: number }>;
 }
 
 export interface DashboardStats {
@@ -165,6 +302,37 @@ export interface FinanceDashboardStats {
   voucherPassRate: number;
   invoicePassRate: number;
   recentReviews: ReviewItem[];
+}
+
+// Phase 5: 参会人员详情
+export interface ConferenceAttendee {
+  email: string;
+  name: string;
+  gender: string;
+  unit: string;
+  role: string;
+  userType: string;
+  feeType: ConferenceFeeType;
+  feeAmount: number;
+  paymentStatus: string;
+  reportType?: string;
+  reportTitle?: string;
+  abstractFileName?: string;
+  abstractFileUrl?: string;
+  accommodationType?: string;
+  accommodationLabel?: string;
+  fieldTripPre: boolean;
+  fieldTripDuring: boolean;
+  fieldTripPost: boolean;
+  voucherUrl?: string;
+  invoiceUrl?: string;
+}
+
+// Phase 5: 导出选项
+export interface ExportOptions {
+  scope: "branch" | "conference";
+  scopeId: string;
+  includeCategories?: ConferenceFeeType[];
 }
 
 export interface AuditLogEntry {
@@ -209,7 +377,27 @@ interface AdminContextType {
   getDashboardStats(): DashboardStats;
   getBranchDashboardStats(branchId: string): BranchDashboardStats;
   getFinanceDashboardStats(): FinanceDashboardStats;
+  // Phase 3: 三层统计
+  getGlobalStats(): GlobalStats;
+  getSocietyStats(societyId: string): SocietyStats;
+  getConferenceStats(confId: string): ConferenceStats;
   getAllPaymentRecords(): ReviewItem[];
+  // Phase 5: 参会人员详情 & 导出
+  getConferenceAttendees(confId: string): ConferenceAttendee[];
+  generateExportZip(options: ExportOptions): Promise<Blob>;
+  // Phase 6: 入会/退会审核
+  pendingMembershipApps: MembershipAppRecord[];
+  pendingWithdrawalApps: WithdrawalAppRecord[];
+  approveMembershipApplication(userEmail: string): void;
+  rejectMembershipApplication(userEmail: string, reason: string): void;
+  approveWithdrawalApplication(userEmail: string): void;
+  rejectWithdrawalApplication(userEmail: string, reason: string): void;
+  setMembershipApplicationTemplate(fileUrl: string, fileName: string): void;
+  setWithdrawalApplicationTemplate(fileUrl: string, fileName: string): void;
+  getMembershipApplicationTemplateUrl(): string;
+  getWithdrawalApplicationTemplateUrl(): string;
+  checkMembershipExpiry(): void;
+
   getAllBranches(): BranchRecord[];
   updateBranch(id: string, data: Partial<BranchRecord>): void;
   toggleBranchDisabled(id: string): void;
@@ -230,12 +418,83 @@ const BUILT_IN_ADMINS: (AdminUser & { password: string })[] = [
     name: "学会总管理员",
     role: "super_admin" as AdminRole,
   },
+  // Phase 1: 11 个分会管理员（每分会一个独立账号）
   {
-    email: "branch@gjzdw.org.cn",
+    email: "branch_gwjzdwxfh@paleo.org.cn",
+    password: "admin123",
+    name: "古无脊椎动物学分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "gwjzdwxfh",
+  },
+  {
+    email: "branch_kpgzwyh@paleo.org.cn",
+    password: "admin123",
+    name: "科普工作委员会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "kpgzwyh",
+  },
+  {
+    email: "branch_bfxfh@paleo.org.cn",
+    password: "admin123",
+    name: "孢粉学分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "bfxfh",
+  },
+  {
+    email: "branch_wtxfh@paleo.org.cn",
+    password: "admin123",
+    name: "微体学分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "wtxfh",
+  },
+  {
+    email: "branch_hszlzwyh@paleo.org.cn",
+    password: "admin123",
+    name: "化石藻类专业委员会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "hszlzwyh",
+  },
+  {
+    email: "branch_gzwxfh@paleo.org.cn",
+    password: "admin123",
+    name: "古植物学分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "gzwxfh",
+  },
+  {
+    email: "branch_dqswx@paleo.org.cn",
+    password: "admin123",
+    name: "地球生物学分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "dqswx",
+  },
+  {
+    email: "branch_gst@paleo.org.cn",
+    password: "admin123",
+    name: "古生态专业分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "gst",
+  },
+  {
+    email: "branch_gjzdw@paleo.org.cn",
     password: "admin123",
     name: "古脊椎动物学分会管理员",
     role: "branch_admin" as AdminRole,
     branchId: "gjzdw",
+  },
+  {
+    email: "branch_swcj@paleo.org.cn",
+    password: "admin123",
+    name: "生物沉积学分会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "swcj",
+  },
+  {
+    email: "branch_xjsxff@paleo.org.cn",
+    password: "admin123",
+    name: "新技术新方法专业委员会管理员",
+    role: "branch_admin" as AdminRole,
+    branchId: "xjsxff",
   },
   {
     email: "finance@paleontology.org.cn",
@@ -287,7 +546,19 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     id: "conf-1", name: "第三届全国微体学学术研讨会", branchId: "wtxfh",
     branchName: "微体学分会", startDate: "2026-09-15", endDate: "2026-09-18",
     location: "南京", memberFee: 1200, nonMemberFee: 1320,
+    // Phase 1: 四类会议费配置
+    feeConfig: {
+      studentMember: 800,
+      nonStudentMember: 1200,
+      studentNonMember: 900,
+      nonStudentNonMember: 1500,
+    },
     paymentDeadline: "2026-08-15", abstractDeadline: "2026-07-30",
+    accommodationDeadline: "2026-09-08",
+    fieldTripDeadline: "2026-09-08",
+    fieldTripRoutes: [
+      { id: "s1-pre-1", phase: "pre", name: "南京汤山地质考察", order: 1 },
+    ],
     status: "published",
     sessions: [{ id: "s1", name: "微体化石与生物地层学" }, { id: "s2", name: "微体古生态与古环境" }],
     registrations: 0,
@@ -296,7 +567,17 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     id: "conf-2", name: "古植物学与古气候重建研讨会", branchId: "gzwxfh",
     branchName: "古植物学分会", startDate: "2026-10-10", endDate: "2026-10-13",
     location: "北京", memberFee: 800, nonMemberFee: 880,
+    // Phase 1: 四类会议费配置
+    feeConfig: {
+      studentMember: 600,
+      nonStudentMember: 800,
+      studentNonMember: 700,
+      nonStudentNonMember: 1000,
+    },
     paymentDeadline: "2026-09-10", abstractDeadline: "2026-08-25",
+    accommodationDeadline: "2026-10-03",
+    fieldTripDeadline: "2026-10-03",
+    fieldTripRoutes: [],
     status: "published",
     sessions: [{ id: "s1", name: "古植物系统分类" }],
     registrations: 0,
@@ -305,7 +586,20 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     id: "conf-3", name: "古脊椎动物学前沿论坛", branchId: "gjzdw",
     branchName: "古脊椎动物学分会", startDate: "2026-11-20", endDate: "2026-11-23",
     location: "西安", memberFee: 1500, nonMemberFee: 1650,
+    // Phase 1: 四类会议费配置
+    feeConfig: {
+      studentMember: 1000,
+      nonStudentMember: 1500,
+      studentNonMember: 1200,
+      nonStudentNonMember: 1800,
+    },
     paymentDeadline: "2026-10-20", abstractDeadline: "2026-10-05",
+    accommodationDeadline: "2026-11-13",
+    fieldTripDeadline: "2026-11-13",
+    fieldTripRoutes: [
+      { id: "s3-pre-1", phase: "pre", name: "路线一：蓝田生物群化石产地考察", order: 1 },
+      { id: "s3-post-1", phase: "post", name: "路线一：秦岭造山带地质剖面", order: 1 },
+    ],
     status: "published",
     sessions: [{ id: "s1", name: "恐龙与中生代生态" }, { id: "s2", name: "早期人类演化" }],
     registrations: 0,
@@ -329,6 +623,31 @@ function addWorkdays(dateStr: string, workdays: number): string {
 
 function generateId(): string {
   return `admin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Phase 1: 数据权限过滤 —— 分会管理员只能看到本分会的数据
+function filterByBranchScope<T extends Record<string, unknown>>(
+  data: T[],
+  branchField: keyof T,
+  adminRole: AdminRole,
+  adminBranchId: string | null,
+): T[] {
+  if (adminRole === "branch_admin" && adminBranchId) {
+    return data.filter(item => item[branchField] === adminBranchId);
+  }
+  return data;
+}
+
+/** 分会管理员获取可见的分会成员（boundBranches 包含该分会 ID 的用户） */
+function filterMembersByBranchScope(
+  members: MemberRecord[],
+  adminRole: AdminRole,
+  adminBranchId: string | null,
+): MemberRecord[] {
+  if (adminRole === "branch_admin" && adminBranchId) {
+    return members.filter(m => m.boundBranches.includes(adminBranchId));
+  }
+  return members;
 }
 
 function buildReviewItem(
@@ -1501,7 +1820,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     });
 
-    let filtered = members;
+    // Phase 1: 分会管理员数据权限隔离
+    let filtered = filterMembersByBranchScope(members, adminRole, adminBranchId);
     if (filters?.search) {
       const s = filters.search.toLowerCase();
       filtered = filtered.filter(m => m.email.toLowerCase().includes(s) || m.name.includes(s));
@@ -1513,7 +1833,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       filtered = filtered.filter(m => m.boundBranches.includes(filters.branchId!));
     }
     return filtered;
-  }, []);
+  }, [adminRole, adminBranchId]);
 
   const getMemberDetail = useCallback((email: string): MemberDetail | null => {
     const members = getAllMembers();
@@ -1525,10 +1845,24 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const notifsKey = `paleo_admin_notifs_${email}`;
     const storedNotifs = localStorage.getItem(notifsKey);
     const userNotifs: AdminNotification[] = storedNotifs ? JSON.parse(storedNotifs) : [];
+    // Phase 6: 入会/退会申请书
+    const appKey = `paleo_admin_membership_application_${email}`;
+    const storedApp = localStorage.getItem(appKey);
+    const appData = storedApp ? JSON.parse(storedApp) : null;
+    const wdAppKey = `paleo_admin_withdrawal_application_${email}`;
+    const storedWdApp = localStorage.getItem(wdAppKey);
+    const wdAppData = storedWdApp ? JSON.parse(storedWdApp) : null;
     return {
       ...member,
       paymentHistory: membership.history || [],
       notifications: userNotifs,
+      membershipAppFileUrl: appData?.applicationFileUrl,
+      membershipAppFileName: appData?.applicationFileName,
+      membershipAppStatus: appData?.status,
+      membershipAppRejectReason: appData?.rejectReason,
+      withdrawalAppFileUrl: wdAppData?.applicationFileUrl,
+      withdrawalAppFileName: wdAppData?.applicationFileName,
+      withdrawalAppStatus: wdAppData?.status,
     };
   }, [getAllMembers]);
 
@@ -1568,7 +1902,11 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getAllConferences = useCallback((): ConferenceRecord[] => {
     const stored = localStorage.getItem("paleo_admin_conferences_db");
-    const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
+    const rawConfs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
+    // Phase 1: 分会管理员数据权限隔离
+    const confs = adminRole === "branch_admin" && adminBranchId
+      ? rawConfs.filter(c => c.branchId === adminBranchId)
+      : rawConfs;
     const allUsers: { email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
     return confs.map((c: ConferenceRecord) => {
       let count = 0;
@@ -1581,7 +1919,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return { ...c, registrations: count };
     });
-  }, []);
+  }, [adminRole, adminBranchId]);
 
   const getBranchConferences = useCallback(
     (branchId: string): ConferenceRecord[] => {
@@ -1592,27 +1930,49 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const createConference = useCallback((data: ConferenceData) => {
+    // Phase 1: 分会管理员只能为本分会创建会议
+    if (adminRole === "branch_admin" && adminBranchId && data.branchId !== adminBranchId) {
+      toast.error("您只能为本分会创建会议");
+      return;
+    }
     const stored = localStorage.getItem("paleo_admin_conferences_db");
     const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
     const newConf: ConferenceRecord = {
       ...data,
       id: `conf-${Date.now()}`,
       branchName: BRANCH_MAP[data.branchId] || data.branchId,
+      memberFee: data.feeConfig?.nonStudentMember || data.memberFee || 1000,
+      nonMemberFee: data.feeConfig?.nonStudentNonMember || data.nonMemberFee || Math.round((data.feeConfig?.nonStudentMember || data.memberFee || 1000) * 1.1),
       registrations: 0,
+      accommodationDeadline: data.accommodationDeadline,
+      fieldTripDeadline: data.fieldTripDeadline,
+      fieldTripRoutes: data.fieldTripRoutes,
     };
     confs.push(newConf);
     localStorage.setItem("paleo_admin_conferences_db", JSON.stringify(confs));
     // Sync fee config
-    const feeMap = JSON.parse(localStorage.getItem("paleo_admin_conference_fee_config") || "{}");
-    feeMap[newConf.id] = data.memberFee;
-    localStorage.setItem("paleo_admin_conference_fee_config", JSON.stringify(feeMap));
+    if (data.feeConfig) {
+      const feeConfigs = JSON.parse(localStorage.getItem("paleo_admin_conference_fee_configs") || "{}");
+      feeConfigs[newConf.id] = data.feeConfig;
+      localStorage.setItem("paleo_admin_conference_fee_configs", JSON.stringify(feeConfigs));
+    } else {
+      const feeMap = JSON.parse(localStorage.getItem("paleo_admin_conference_fee_config") || "{}");
+      feeMap[newConf.id] = data.memberFee;
+      localStorage.setItem("paleo_admin_conference_fee_config", JSON.stringify(feeMap));
+    }
     toast.success("会议创建成功");
     triggerRefresh();
-  }, [triggerRefresh]);
+  }, [triggerRefresh, adminRole, adminBranchId]);
 
   const updateConference = useCallback((id: string, data: ConferenceData) => {
     const stored = localStorage.getItem("paleo_admin_conferences_db");
     const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : DEFAULT_CONFERENCES;
+    // Phase 1: 分会管理员只能修改本分会的会议
+    const target = confs.find((c: ConferenceRecord) => c.id === id);
+    if (target && adminRole === "branch_admin" && adminBranchId && target.branchId !== adminBranchId) {
+      toast.error("您只能修改本分会的会议");
+      return;
+    }
     const idx = confs.findIndex((c: ConferenceRecord) => c.id === id);
     if (idx >= 0) {
       confs[idx] = { ...confs[idx], ...data, branchName: BRANCH_MAP[data.branchId] || data.branchId };
@@ -1620,7 +1980,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success("会议更新成功");
       triggerRefresh();
     }
-  }, [triggerRefresh]);
+  }, [triggerRefresh, adminRole, adminBranchId]);
 
   // ==========================================
   // STATISTICS
@@ -1630,10 +1990,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const members = getAllMembers();
     const { vouchers, invoices } = buildReviewQueues();
     const confs = getAllConferences();
-    const branchCounts = Object.entries(BRANCH_MAP).map(([id, name]) => ({
-      name,
-      count: members.filter(m => m.boundBranches.includes(id)).length,
-    }));
+    // Phase 1: 分会管理员只看本分会数据
+    const branchCounts = Object.entries(BRANCH_MAP)
+      .filter(([id]) => adminRole !== "branch_admin" || id === adminBranchId)
+      .map(([id, name]) => ({
+        name,
+        count: members.filter(m => m.boundBranches.includes(id)).length,
+      }));
     const nonMemberUsers = members.filter(m => m.userType === "non_member");
     const memberUsers = members.filter(m => m.userType === "member");
     return {
@@ -1647,7 +2010,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       branchMemberCounts: branchCounts,
       paymentTrend: [],
     };
-  }, [getAllMembers, buildReviewQueues, getAllConferences]);
+  }, [getAllMembers, buildReviewQueues, getAllConferences, adminRole, adminBranchId]);
 
   const getBranchDashboardStats = useCallback((branchId: string): BranchDashboardStats => {
     const confs = getAllConferences().filter(c => c.branchId === branchId);
@@ -1678,14 +2041,245 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [buildReviewQueues]);
 
+  // Phase 3: Global statistics
+  const getGlobalStats = useCallback((): GlobalStats => {
+    const members = getAllMembers();
+    const confs = getAllConferences();
+    const memberUsers = members.filter(m => m.userType === "member");
+    const nonMemberUsers = members.filter(m => m.userType === "non_member");
+
+    const studentMembers = memberUsers.filter(m => m.role === "学生").length;
+    const nonStudentMembers = memberUsers.filter(m => m.role !== "学生").length;
+    const studentNonMembers = nonMemberUsers.filter(m => m.role === "学生").length;
+    const nonStudentNonMembers = nonMemberUsers.filter(m => m.role !== "学生").length;
+
+    // Estimate membership fee totals
+    const studentMembershipFeeCount = studentMembers;
+    const studentMembershipFeeAmount = studentMembershipFeeCount * 100;
+    const nonStudentMembershipFeeCount = nonStudentMembers;
+    const nonStudentMembershipFeeAmount = nonStudentMembershipFeeCount * 200;
+    const totalMembershipFee = studentMembershipFeeAmount + nonStudentMembershipFeeAmount;
+
+    // Estimate conference fee per society
+    const perSocietyConferenceFee: Record<string, number> = {};
+    for (const conf of confs) {
+      const bid = conf.branchId;
+      perSocietyConferenceFee[bid] = (perSocietyConferenceFee[bid] || 0) + (conf.feeConfig?.nonStudentMember || conf.memberFee) * conf.registrations;
+    }
+
+    // Estimate total conference fee
+    const totalConferenceFee = Object.values(perSocietyConferenceFee).reduce((a, b) => a + b, 0);
+
+    return {
+      totalUsers: members.length,
+      totalMembers: memberUsers.length,
+      totalNonMembers: nonMemberUsers.length,
+      studentMembers,
+      nonStudentMembers,
+      studentNonMembers,
+      nonStudentNonMembers,
+      totalMembershipFee,
+      studentMembershipFeeAmount,
+      studentMembershipFeeCount,
+      nonStudentMembershipFeeAmount,
+      nonStudentMembershipFeeCount,
+      totalConferenceFee,
+      perSocietyConferenceFee,
+    };
+  }, [getAllMembers, getAllConferences]);
+
+  // Phase 3: Per-society statistics
+  const getSocietyStats = useCallback((societyId: string): SocietyStats => {
+    const members = getAllMembers();
+    const confs = getAllConferences().filter(c => c.branchId === societyId);
+    const societyName = ALL_SOCIETY_UNITS[societyId] || societyId;
+
+    let totalAttendees = 0;
+    let totalMembers = 0;
+    let totalNonMembers = 0;
+    let studentMembers = 0;
+    let nonStudentMembers = 0;
+    let studentNonMembers = 0;
+    let nonStudentNonMembers = 0;
+    let totalConferenceFee = 0;
+
+    const feeBreakdown: FeeBreakdown = {
+      studentMember: { count: 0, amount: 0 },
+      nonStudentMember: { count: 0, amount: 0 },
+      studentNonMember: { count: 0, amount: 0 },
+      nonStudentNonMember: { count: 0, amount: 0 },
+    };
+
+    for (const conf of confs) {
+      const fc = conf.feeConfig;
+      const regs = conf.registrations;
+      // Estimate breakdown assuming equal distribution
+      const quarter = Math.floor(regs / 4);
+      const remainder = regs - quarter * 4;
+      feeBreakdown.studentMember.count += quarter + (remainder > 0 ? 1 : 0);
+      feeBreakdown.studentMember.amount += (quarter + (remainder > 0 ? 1 : 0)) * (fc?.studentMember || 0);
+      feeBreakdown.nonStudentMember.count += quarter + (remainder > 1 ? 1 : 0);
+      feeBreakdown.nonStudentMember.amount += (quarter + (remainder > 1 ? 1 : 0)) * (fc?.nonStudentMember || conf.memberFee);
+      feeBreakdown.studentNonMember.count += quarter + (remainder > 2 ? 1 : 0);
+      feeBreakdown.studentNonMember.amount += (quarter + (remainder > 2 ? 1 : 0)) * (fc?.studentNonMember || 0);
+      feeBreakdown.nonStudentNonMember.count += quarter;
+      feeBreakdown.nonStudentNonMember.amount += quarter * (fc?.nonStudentNonMember || conf.nonMemberFee);
+
+      totalAttendees += regs;
+      totalConferenceFee += (fc?.studentMember || 0) * feeBreakdown.studentMember.count +
+        (fc?.nonStudentMember || conf.memberFee) * feeBreakdown.nonStudentMember.count +
+        (fc?.studentNonMember || 0) * feeBreakdown.studentNonMember.count +
+        (fc?.nonStudentNonMember || conf.nonMemberFee) * feeBreakdown.nonStudentNonMember.count;
+    }
+
+    // Estimate member/non-member counts
+    const boundMembers = members.filter(m => m.boundBranches.includes(societyId));
+    totalMembers = boundMembers.filter(m => m.userType === "member").length;
+    totalNonMembers = boundMembers.filter(m => m.userType === "non_member").length;
+    studentMembers = boundMembers.filter(m => m.userType === "member" && m.role === "学生").length;
+    nonStudentMembers = boundMembers.filter(m => m.userType === "member" && m.role !== "学生").length;
+    studentNonMembers = boundMembers.filter(m => m.userType === "non_member" && m.role === "学生").length;
+    nonStudentNonMembers = boundMembers.filter(m => m.userType === "non_member" && m.role !== "学生").length;
+
+    return {
+      societyName,
+      totalAttendees,
+      totalMembers,
+      totalNonMembers,
+      studentMembers,
+      nonStudentMembers,
+      studentNonMembers,
+      nonStudentNonMembers,
+      totalConferenceFee,
+      feeBreakdown,
+    };
+  }, [getAllMembers, getAllConferences]);
+
+  // Phase 3: Per-conference statistics
+  const getConferenceStats = useCallback((confId: string): ConferenceStats => {
+    const confs = getAllConferences();
+    const conf = confs.find(c => c.id === confId);
+    if (!conf) {
+      return {
+        confName: "",
+        societyName: "",
+        totalAttendees: 0,
+        totalConferenceFee: 0,
+        totalReports: 0,
+        oralReports: 0,
+        posterReports: 0,
+        totalMembers: 0,
+        totalNonMembers: 0,
+        studentMembers: 0,
+        nonStudentMembers: 0,
+        studentNonMembers: 0,
+        nonStudentNonMembers: 0,
+        feeBreakdown: {
+          studentMember: { count: 0, amount: 0 },
+          nonStudentMember: { count: 0, amount: 0 },
+          studentNonMember: { count: 0, amount: 0 },
+          nonStudentNonMember: { count: 0, amount: 0 },
+        },
+        accommodation: { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0 },
+        fieldTrips: {
+          pre: { total: 0, male: 0, female: 0 },
+          during: { total: 0, male: 0, female: 0 },
+          post: { total: 0, male: 0, female: 0 },
+        },
+      };
+    }
+
+    const fc = conf.feeConfig;
+    const regs = conf.registrations;
+    const quarter = Math.floor(regs / 4);
+    const remainder = regs - quarter * 4;
+
+    const feeBreakdown: FeeBreakdown = {
+      studentMember: {
+        count: quarter + (remainder > 0 ? 1 : 0),
+        amount: (quarter + (remainder > 0 ? 1 : 0)) * (fc?.studentMember || 0),
+      },
+      nonStudentMember: {
+        count: quarter + (remainder > 1 ? 1 : 0),
+        amount: (quarter + (remainder > 1 ? 1 : 0)) * (fc?.nonStudentMember || conf.memberFee),
+      },
+      studentNonMember: {
+        count: quarter + (remainder > 2 ? 1 : 0),
+        amount: (quarter + (remainder > 2 ? 1 : 0)) * (fc?.studentNonMember || 0),
+      },
+      nonStudentNonMember: {
+        count: quarter,
+        amount: quarter * (fc?.nonStudentNonMember || conf.nonMemberFee),
+      },
+    };
+
+    const totalConferenceFee =
+      feeBreakdown.studentMember.amount +
+      feeBreakdown.nonStudentMember.amount +
+      feeBreakdown.studentNonMember.amount +
+      feeBreakdown.nonStudentNonMember.amount;
+
+    // Estimate report counts (40% regs, 60/40 oral/poster split)
+    const totalReports = Math.round(regs * 0.4);
+    const oralReports = Math.round(totalReports * 0.6);
+    const posterReports = totalReports - oralReports;
+
+    // Estimate accommodation (30% of regs)
+    const accRooms = Math.round(regs * 0.3);
+    const accMaleSingle = Math.round(accRooms * 0.15);
+    const accMaleDouble = Math.round(accRooms * 0.3);
+    const accFemaleSingle = Math.round(accRooms * 0.15);
+    const accFemaleDouble = accRooms - accMaleSingle - accMaleDouble - accFemaleSingle;
+
+    // Estimate field trip participants (20% of regs)
+    const tripTotal = Math.round(regs * 0.2);
+    const tripMale = Math.round(tripTotal * 0.65);
+    const tripFemale = tripTotal - tripMale;
+    const tripPerPhase = Math.round(tripTotal / 3);
+
+    return {
+      confName: conf.name,
+      societyName: conf.branchName || ALL_SOCIETY_UNITS[conf.branchId] || conf.branchId,
+      totalAttendees: regs,
+      totalConferenceFee,
+      totalReports,
+      oralReports,
+      posterReports,
+      totalMembers: feeBreakdown.studentMember.count + feeBreakdown.nonStudentMember.count,
+      totalNonMembers: feeBreakdown.studentNonMember.count + feeBreakdown.nonStudentNonMember.count,
+      studentMembers: feeBreakdown.studentMember.count,
+      nonStudentMembers: feeBreakdown.nonStudentMember.count,
+      studentNonMembers: feeBreakdown.studentNonMember.count,
+      nonStudentNonMembers: feeBreakdown.nonStudentNonMember.count,
+      feeBreakdown,
+      accommodation: {
+        totalRooms: accRooms,
+        maleSingle: accMaleSingle,
+        maleDouble: accMaleDouble,
+        femaleSingle: accFemaleSingle,
+        femaleDouble: accFemaleDouble,
+      },
+      fieldTrips: {
+        pre: { total: tripPerPhase, male: Math.round(tripMale / 3), female: Math.round(tripFemale / 3) },
+        during: { total: tripPerPhase, male: Math.round(tripMale / 3), female: Math.round(tripFemale / 3) },
+        post: { total: tripTotal - tripPerPhase * 2, male: tripMale - Math.round(tripMale / 3) * 2, female: tripFemale - Math.round(tripFemale / 3) * 2 },
+      },
+    };
+  }, [getAllConferences]);
+
   // ==========================================
   // FINANCE RECORDS
   // ==========================================
 
   const getAllPaymentRecords = useCallback((): ReviewItem[] => {
     const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+    // Phase 1: 分会管理员只看本分会成员的支付记录
+    const branchMembers = adminRole === "branch_admin" && adminBranchId
+      ? new Set(getAllMembers().map(m => m.email))
+      : null;
     const records: ReviewItem[] = [];
     for (const u of allUsers) {
+      if (branchMembers && !branchMembers.has(u.email)) continue;
       const key = `paleo_admin_society_membership_${u.email}`;
       const stored = localStorage.getItem(key);
       if (stored) {
@@ -1706,7 +2300,534 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
     return records;
+  }, [getAllMembers, adminRole, adminBranchId]);
+
+  // ==========================================
+  // PHASE 5: CONFERENCE ATTENDEES & EXPORT
+  // ==========================================
+
+  const getConferenceAttendees = useCallback((confId: string): ConferenceAttendee[] => {
+    const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string }[] =
+      JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+    const confs = getAllConferences();
+    const conf = confs.find(c => c.id === confId);
+
+    const attendees: ConferenceAttendee[] = [];
+
+    for (const u of allUsers) {
+      const confsKey = `paleo_admin_confs_${u.email}`;
+      const storedConfs = localStorage.getItem(confsKey);
+      if (!storedConfs) continue;
+      const confRegs = JSON.parse(storedConfs);
+      const reg = confRegs[confId];
+      if (!reg) continue;
+      // Skip unpaid
+      if (reg.status === "unpaid") continue;
+
+      const typeKey = `paleo_admin_user_type_${u.email}`;
+      const userType = localStorage.getItem(typeKey) || "regular";
+      const isStudent = u.role === "学生";
+
+      // Determine fee type
+      let feeType: ConferenceFeeType;
+      if (userType === "member") {
+        feeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
+      } else {
+        feeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
+      }
+
+      // Determine fee amount
+      let feeAmount = 0;
+      if (conf?.feeConfig) {
+        const fc = conf.feeConfig;
+        switch (feeType) {
+          case CONFERENCE_FEE_TYPE.STUDENT_MEMBER: feeAmount = fc.studentMember; break;
+          case CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER: feeAmount = fc.nonStudentMember; break;
+          case CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER: feeAmount = fc.studentNonMember; break;
+          case CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER: feeAmount = fc.nonStudentNonMember; break;
+        }
+      }
+
+      // Field trip participation
+      const ftSelections = reg.fieldTripSelections;
+      const fieldTripPre = !!(ftSelections?.pre?.length);
+      const fieldTripDuring = !!(ftSelections?.during?.length);
+      const fieldTripPost = !!(ftSelections?.post?.length);
+
+      // Accommodation label
+      const accType = reg.accommodationType;
+      const accLabel = accType ? ACCOMMODATION_TYPE_LABEL[accType] || accType : (reg.accommodation || "—");
+
+      attendees.push({
+        email: u.email,
+        name: reg.name || u.name || u.email,
+        gender: reg.gender || u.gender || "",
+        unit: reg.unit || u.unit || "",
+        role: reg.role || u.role || "",
+        userType: userType === "member" ? "member" : "non_member",
+        feeType,
+        feeAmount,
+        paymentStatus: reg.status || "unpaid",
+        reportType: reg.presentationType,
+        reportTitle: reg.reportTitle,
+        abstractFileName: reg.abstractFileName,
+        abstractFileUrl: reg.abstractFileUrl,
+        accommodationType: accType,
+        accommodationLabel: accLabel,
+        fieldTripPre,
+        fieldTripDuring,
+        fieldTripPost,
+        voucherUrl: reg.paymentVoucher,
+        invoiceUrl: reg.invoiceUrl,
+      });
+    }
+
+    return attendees;
+  }, [getAllConferences]);
+
+  // Helper to normalize file names
+  const sanitizeFileName = (name: string): string => {
+    return name.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
+  };
+
+  const generateExportZip = useCallback(async (options: ExportOptions): Promise<Blob> => {
+    const zip = new JSZip();
+    const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string }[] =
+      JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+    const confs = getAllConferences();
+
+    const categories: { feeType: ConferenceFeeType; folderName: string }[] = [
+      { feeType: CONFERENCE_FEE_TYPE.STUDENT_MEMBER, folderName: "学生会员" },
+      { feeType: CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER, folderName: "非学生会员" },
+      { feeType: CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER, folderName: "学生（非会员）" },
+      { feeType: CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER, folderName: "非学生（非会员）" },
+    ];
+
+    const filteredCategories = options.includeCategories
+      ? categories.filter(c => options.includeCategories!.includes(c.feeType))
+      : categories;
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Determine scope name for root folder
+    let scopeName = options.scopeId;
+    if (options.scope === "branch") {
+      scopeName = ALL_SOCIETY_UNITS[options.scopeId] || options.scopeId;
+    } else {
+      const conf = confs.find(c => c.id === options.scopeId);
+      scopeName = conf?.name || options.scopeId;
+    }
+
+    const rootFolder = `export_${options.scope}_${sanitizeFileName(options.scopeId)}_${today}`;
+
+    for (const cat of filteredCategories) {
+      const voucherFolder = `${rootFolder}/${cat.folderName}/缴费凭证`;
+      const invoiceFolder = `${rootFolder}/${cat.folderName}/电子发票`;
+
+      for (const u of allUsers) {
+        const typeKey = `paleo_admin_user_type_${u.email}`;
+        const userType = localStorage.getItem(typeKey) || "regular";
+        const isStudent = u.role === "学生";
+        let userFeeType: ConferenceFeeType;
+        if (userType === "member") {
+          userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
+        } else {
+          userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
+        }
+        if (userFeeType !== cat.feeType) continue;
+
+        const userName = u.name || u.email;
+
+        if (options.scope === "branch") {
+          // Export by branch: collect society membership records and conference records for this branch
+          // Society membership vouchers/invoices
+          const membershipKey = `paleo_admin_society_membership_${u.email}`;
+          const storedMembership = localStorage.getItem(membershipKey);
+          if (storedMembership) {
+            const membership = JSON.parse(storedMembership);
+            const userBoundKey = `paleo_admin_bound_branches_${u.email}`;
+            const boundBranches: string[] = JSON.parse(localStorage.getItem(userBoundKey) || "[]");
+            if (boundBranches.includes(options.scopeId)) {
+              for (const h of (membership.history || [])) {
+                if (h.voucherUrl) {
+                  const ext = h.voucherUrl.split(".").pop() || "jpg";
+                  zip.file(`${voucherFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${h.submitTime?.replace(/[:\s]/g, "-") || today}_${h.id}.${ext}`, h.voucherUrl, { base64: h.voucherUrl.startsWith("data:") });
+                }
+                if (h.invoiceUrl) {
+                  const ext = h.invoiceUrl.split(".").pop() || "jpg";
+                  zip.file(`${invoiceFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${h.submitTime?.replace(/[:\s]/g, "-") || today}_${h.id}.${ext}`, h.invoiceUrl, { base64: h.invoiceUrl.startsWith("data:") });
+                }
+              }
+            }
+          }
+
+          // Conference records for this branch
+          const branchConfs = confs.filter(c => c.branchId === options.scopeId);
+          const confsKey = `paleo_admin_confs_${u.email}`;
+          const storedConfs = localStorage.getItem(confsKey);
+          if (storedConfs) {
+            const confRegs = JSON.parse(storedConfs);
+            for (const conf of branchConfs) {
+              const reg = confRegs[conf.id];
+              if (!reg) continue;
+              if (reg.paymentVoucher) {
+                const ext = reg.paymentVoucher.split(".").pop() || "jpg";
+                zip.file(`${voucherFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${conf.name.slice(0, 10)}_${today}.${ext}`, reg.paymentVoucher, { base64: reg.paymentVoucher.startsWith("data:") });
+              }
+              if (reg.invoiceUrl) {
+                const ext = reg.invoiceUrl.split(".").pop() || "jpg";
+                zip.file(`${invoiceFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${conf.name.slice(0, 10)}_${today}.${ext}`, reg.invoiceUrl, { base64: reg.invoiceUrl.startsWith("data:") });
+              }
+            }
+          }
+        } else {
+          // Export by conference
+          const confsKey = `paleo_admin_confs_${u.email}`;
+          const storedConfs = localStorage.getItem(confsKey);
+          if (!storedConfs) continue;
+          const confRegs = JSON.parse(storedConfs);
+          const reg = confRegs[options.scopeId];
+          if (!reg) continue;
+
+          if (reg.paymentVoucher) {
+            const ext = reg.paymentVoucher.split(".").pop() || "jpg";
+            zip.file(`${voucherFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${today}_${options.scopeId}.${ext}`, reg.paymentVoucher, { base64: reg.paymentVoucher.startsWith("data:") });
+          }
+          if (reg.invoiceUrl) {
+            const ext = reg.invoiceUrl.split(".").pop() || "jpg";
+            zip.file(`${invoiceFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${today}_${options.scopeId}.${ext}`, reg.invoiceUrl, { base64: reg.invoiceUrl.startsWith("data:") });
+          }
+        }
+      }
+    }
+
+    // Generate CSV summary if there are records
+    const allAttendees = options.scope === "conference"
+      ? getConferenceAttendees(options.scopeId)
+      : [];
+    if (allAttendees.length > 0) {
+      const header = "姓名,邮箱,性别,单位,身份类型,费用类型,缴费状态,报告类型,住宿,野外(会前),野外(会中),野外(会后)";
+      const rows = allAttendees.map(a =>
+        `"${a.name}","${a.email}","${a.gender}","${a.unit}","${CONFERENCE_FEE_TYPE_LABEL[a.feeType]}","¥${a.feeAmount}","${a.paymentStatus}","${a.reportType || "—"}","${a.accommodationLabel || "—"}","${a.fieldTripPre ? "是" : "否"}","${a.fieldTripDuring ? "是" : "否"}","${a.fieldTripPost ? "是" : "否"}"`
+      );
+      zip.file(`${rootFolder}/汇总台账.csv`, "﻿" + header + "\n" + rows.join("\n"));
+    }
+
+    return zip.generateAsync({ type: "blob" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getAllConferences, getConferenceAttendees]);
+
+  // ==========================================
+  // PHASE 6: MEMBERSHIP APPLICATION & WITHDRAWAL REVIEW
+  // ==========================================
+
+  const buildMembershipAppQueue = useCallback((): MembershipAppRecord[] => {
+    const apps: MembershipAppRecord[] = [];
+    const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+
+    for (const u of allUsers) {
+      const email = u.email;
+      const appKey = `paleo_admin_membership_application_${email}`;
+      const stored = localStorage.getItem(appKey);
+      if (!stored) continue;
+      const app = JSON.parse(stored);
+      if (app.status === MEMBERSHIP_STATUS.APPLICATION_SUBMITTED) {
+        apps.push({
+          id: `mem-app-${email}`,
+          userEmail: email,
+          userName: u.name || email,
+          applicationFileUrl: app.applicationFileUrl || "",
+          applicationFileName: app.applicationFileName || "入会申请书",
+          submitTime: app.submitTime || "",
+          status: app.status,
+        });
+      }
+    }
+    return apps;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
+
+  const buildWithdrawalAppQueue = useCallback((): WithdrawalAppRecord[] => {
+    const apps: WithdrawalAppRecord[] = [];
+    const allUsers: { name?: string; email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+
+    for (const u of allUsers) {
+      const email = u.email;
+      const appKey = `paleo_admin_withdrawal_application_${email}`;
+      const stored = localStorage.getItem(appKey);
+      if (!stored) continue;
+      const app = JSON.parse(stored);
+      if (app.status === MEMBERSHIP_STATUS.WITHDRAWAL_SUBMITTED) {
+        // Get membership info
+        const membershipKey = `paleo_admin_society_membership_${email}`;
+        const storedMembership = localStorage.getItem(membershipKey);
+        const membership = storedMembership ? JSON.parse(storedMembership) : { status: "unknown", expiryDate: undefined };
+
+        apps.push({
+          id: `wd-app-${email}`,
+          userEmail: email,
+          userName: u.name || email,
+          membershipStatus: membership.status || "unknown",
+          expiryDate: membership.expiryDate,
+          applicationFileUrl: app.applicationFileUrl || "",
+          applicationFileName: app.applicationFileName || "退会申请书",
+          submitTime: app.submitTime || "",
+          status: app.status,
+        });
+      }
+    }
+    return apps;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
+
+  const pendingMembershipApps = buildMembershipAppQueue();
+  const pendingWithdrawalApps = buildWithdrawalAppQueue();
+
+  const approveMembershipApplication = useCallback((userEmail: string) => {
+    const appKey = `paleo_admin_membership_application_${userEmail}`;
+    const stored = localStorage.getItem(appKey);
+    if (!stored) { toast.error("未找到该入会申请"); return; }
+    const app = JSON.parse(stored);
+    app.status = MEMBERSHIP_STATUS.APPLICATION_APPROVED;
+    app.reviewTime = new Date().toISOString();
+    localStorage.setItem(appKey, JSON.stringify(app));
+
+    // 同步更新会员状态为待缴费
+    const membershipKey = `paleo_admin_society_membership_${userEmail}`;
+    const membershipStored = localStorage.getItem(membershipKey);
+    const membership = membershipStored ? JSON.parse(membershipStored) : { status: "not_member", history: [] };
+    membership.status = MEMBERSHIP_STATUS.APPLICATION_APPROVED;
+    localStorage.setItem(membershipKey, JSON.stringify(membership));
+
+    // 同步用户前台 localStorage（使用 paleo_ 前缀）
+    const userAppKey = `paleo_membership_application_${userEmail}`;
+    const userStoredApp = localStorage.getItem(userAppKey);
+    if (userStoredApp) {
+      const userApp = JSON.parse(userStoredApp);
+      userApp.status = MEMBERSHIP_STATUS.APPLICATION_APPROVED;
+      userApp.reviewTime = new Date().toISOString();
+      localStorage.setItem(userAppKey, JSON.stringify(userApp));
+    }
+    const userMembershipKey = `paleo_society_membership_${userEmail}`;
+    const userStoredMem = localStorage.getItem(userMembershipKey);
+    if (userStoredMem) {
+      const userMem = JSON.parse(userStoredMem);
+      userMem.status = MEMBERSHIP_STATUS.APPLICATION_APPROVED;
+      localStorage.setItem(userMembershipKey, JSON.stringify(userMem));
+    }
+
+    addNotification({
+      title: "入会申请已通过",
+      content: `${userEmail} 的入会申请书已审核通过`,
+      type: "success",
+    });
+    toast.success("入会申请已通过，用户可进入缴费阶段");
+    triggerRefresh();
+  }, [addNotification, triggerRefresh]);
+
+  const rejectMembershipApplication = useCallback((userEmail: string, reason: string) => {
+    const appKey = `paleo_admin_membership_application_${userEmail}`;
+    const stored = localStorage.getItem(appKey);
+    if (!stored) { toast.error("未找到该入会申请"); return; }
+    const app = JSON.parse(stored);
+    app.status = MEMBERSHIP_STATUS.APPLICATION_REJECTED;
+    app.rejectReason = reason;
+    app.reviewTime = new Date().toISOString();
+    localStorage.setItem(appKey, JSON.stringify(app));
+
+    // 同步更新会员状态
+    const membershipKey = `paleo_admin_society_membership_${userEmail}`;
+    const membershipStored = localStorage.getItem(membershipKey);
+    const membership = membershipStored ? JSON.parse(membershipStored) : { status: "not_member", history: [] };
+    membership.status = MEMBERSHIP_STATUS.APPLICATION_REJECTED;
+    membership.applicationRejectReason = reason;
+    localStorage.setItem(membershipKey, JSON.stringify(membership));
+
+    // 同步用户前台
+    const userAppKey = `paleo_membership_application_${userEmail}`;
+    const userStoredApp = localStorage.getItem(userAppKey);
+    if (userStoredApp) {
+      const userApp = JSON.parse(userStoredApp);
+      userApp.status = MEMBERSHIP_STATUS.APPLICATION_REJECTED;
+      userApp.rejectReason = reason;
+      userApp.reviewTime = new Date().toISOString();
+      localStorage.setItem(userAppKey, JSON.stringify(userApp));
+    }
+    const userMembershipKey = `paleo_society_membership_${userEmail}`;
+    const userStoredMem = localStorage.getItem(userMembershipKey);
+    if (userStoredMem) {
+      const userMem = JSON.parse(userStoredMem);
+      userMem.status = MEMBERSHIP_STATUS.APPLICATION_REJECTED;
+      userMem.applicationRejectReason = reason;
+      localStorage.setItem(userMembershipKey, JSON.stringify(userMem));
+    }
+
+    addNotification({
+      title: "入会申请已驳回",
+      content: `${userEmail} 的入会申请书已被驳回，原因：${reason}`,
+      type: "warning",
+    });
+    toast.success("入会申请已驳回");
+    triggerRefresh();
+  }, [addNotification, triggerRefresh]);
+
+  const approveWithdrawalApplication = useCallback((userEmail: string) => {
+    const appKey = `paleo_admin_withdrawal_application_${userEmail}`;
+    const stored = localStorage.getItem(appKey);
+    if (!stored) { toast.error("未找到该退会申请"); return; }
+    const app = JSON.parse(stored);
+    app.status = MEMBERSHIP_STATUS.WITHDRAWN;
+    app.reviewTime = new Date().toISOString();
+    localStorage.setItem(appKey, JSON.stringify(app));
+
+    // 同步更新会员状态为已退会
+    const membershipKey = `paleo_admin_society_membership_${userEmail}`;
+    const membershipStored = localStorage.getItem(membershipKey);
+    if (membershipStored) {
+      const membership = JSON.parse(membershipStored);
+      membership.status = MEMBERSHIP_STATUS.WITHDRAWN;
+      localStorage.setItem(membershipKey, JSON.stringify(membership));
+    }
+
+    // 同步用户前台
+    const userAppKey = `paleo_withdrawal_application_${userEmail}`;
+    const userStoredApp = localStorage.getItem(userAppKey);
+    if (userStoredApp) {
+      const userApp = JSON.parse(userStoredApp);
+      userApp.status = MEMBERSHIP_STATUS.WITHDRAWN;
+      userApp.reviewTime = new Date().toISOString();
+      localStorage.setItem(userAppKey, JSON.stringify(userApp));
+    }
+    const userMembershipKey = `paleo_society_membership_${userEmail}`;
+    const userStoredMem = localStorage.getItem(userMembershipKey);
+    if (userStoredMem) {
+      const userMem = JSON.parse(userStoredMem);
+      userMem.status = MEMBERSHIP_STATUS.WITHDRAWN;
+      localStorage.setItem(userMembershipKey, JSON.stringify(userMem));
+    }
+
+    // 将用户类型改为非会员
+    const userTypeKey = `paleo_admin_user_type_${userEmail}`;
+    localStorage.setItem(userTypeKey, "non_member");
+    const userTypeKeyUser = `paleo_user_type_${userEmail}`;
+    localStorage.setItem(userTypeKeyUser, "non_member");
+
+    addNotification({
+      title: "退会申请已通过",
+      content: `${userEmail} 的退会申请已通过，会员资格已终止`,
+      type: "info",
+    });
+    toast.success("退会申请已通过");
+    triggerRefresh();
+  }, [addNotification, triggerRefresh]);
+
+  const rejectWithdrawalApplication = useCallback((userEmail: string, reason: string) => {
+    const appKey = `paleo_admin_withdrawal_application_${userEmail}`;
+    const stored = localStorage.getItem(appKey);
+    if (!stored) { toast.error("未找到该退会申请"); return; }
+    const app = JSON.parse(stored);
+    app.status = MEMBERSHIP_STATUS.WITHDRAWAL_REJECTED;
+    app.rejectReason = reason;
+    app.reviewTime = new Date().toISOString();
+    localStorage.setItem(appKey, JSON.stringify(app));
+
+    // 恢复会员状态为 active
+    const membershipKey = `paleo_admin_society_membership_${userEmail}`;
+    const membershipStored = localStorage.getItem(membershipKey);
+    if (membershipStored) {
+      const membership = JSON.parse(membershipStored);
+      membership.status = MEMBERSHIP_STATUS.ACTIVE;
+      localStorage.setItem(membershipKey, JSON.stringify(membership));
+    }
+
+    // 同步用户前台
+    const userAppKey = `paleo_withdrawal_application_${userEmail}`;
+    const userStoredApp = localStorage.getItem(userAppKey);
+    if (userStoredApp) {
+      const userApp = JSON.parse(userStoredApp);
+      userApp.status = MEMBERSHIP_STATUS.WITHDRAWAL_REJECTED;
+      userApp.rejectReason = reason;
+      userApp.reviewTime = new Date().toISOString();
+      localStorage.setItem(userAppKey, JSON.stringify(userApp));
+    }
+    const userMembershipKey = `paleo_society_membership_${userEmail}`;
+    const userStoredMem = localStorage.getItem(userMembershipKey);
+    if (userStoredMem) {
+      const userMem = JSON.parse(userStoredMem);
+      userMem.status = MEMBERSHIP_STATUS.ACTIVE;
+      localStorage.setItem(userMembershipKey, JSON.stringify(userMem));
+    }
+
+    addNotification({
+      title: "退会申请已驳回",
+      content: `${userEmail} 的退会申请已被驳回，原因：${reason}`,
+      type: "warning",
+    });
+    toast.success("退会申请已驳回");
+    triggerRefresh();
+  }, [addNotification, triggerRefresh]);
+
+  // 模板管理
+  const setMembershipApplicationTemplateAction = useCallback((fileUrl: string, fileName: string) => {
+    localStorage.setItem("paleo_membership_application_template", JSON.stringify({ url: fileUrl, name: fileName, updatedAt: new Date().toISOString() }));
+    toast.success("入会申请书模板已更新");
   }, []);
+
+  const setWithdrawalApplicationTemplateAction = useCallback((fileUrl: string, fileName: string) => {
+    localStorage.setItem("paleo_withdrawal_application_template", JSON.stringify({ url: fileUrl, name: fileName, updatedAt: new Date().toISOString() }));
+    toast.success("退会申请书模板已更新");
+  }, []);
+
+  const getMembershipApplicationTemplateUrlAction = useCallback((): string => {
+    const stored = localStorage.getItem("paleo_membership_application_template");
+    if (stored) {
+      try { return JSON.parse(stored).url || ""; } catch { return ""; }
+    }
+    return "";
+  }, []);
+
+  const getWithdrawalApplicationTemplateUrlAction = useCallback((): string => {
+    const stored = localStorage.getItem("paleo_withdrawal_application_template");
+    if (stored) {
+      try { return JSON.parse(stored).url || ""; } catch { return ""; }
+    }
+    return "";
+  }, []);
+
+  // 自动退会检查
+  const checkMembershipExpiry = useCallback(() => {
+    const allUsers: { email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+    const today = new Date().toISOString().split("T")[0];
+    let expiredCount = 0;
+
+    for (const u of allUsers) {
+      const key = `paleo_admin_society_membership_${u.email}`;
+      const stored = localStorage.getItem(key);
+      if (!stored) continue;
+      const membership = JSON.parse(stored);
+      if (membership.status === MEMBERSHIP_STATUS.ACTIVE && membership.expiryDate && membership.expiryDate < today) {
+        membership.status = MEMBERSHIP_STATUS.EXPIRED;
+        localStorage.setItem(key, JSON.stringify(membership));
+        // 同步用户前台
+        const userKey = `paleo_society_membership_${u.email}`;
+        const userStored = localStorage.getItem(userKey);
+        if (userStored) {
+          const userMem = JSON.parse(userStored);
+          userMem.status = MEMBERSHIP_STATUS.EXPIRED;
+          localStorage.setItem(userKey, JSON.stringify(userMem));
+        }
+        expiredCount++;
+      }
+    }
+
+    if (expiredCount > 0) {
+      addNotification({
+        title: "会员过期检查完成",
+        content: `已自动标记 ${expiredCount} 名过期会员`,
+        type: "info",
+      });
+    }
+  }, [addNotification]);
 
   // ==========================================
   // BRANCH MANAGEMENT
@@ -1714,16 +2835,28 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getAllBranches = useCallback((): BranchRecord[] => {
     const stored = localStorage.getItem("paleo_admin_branches_db");
-    if (stored) return JSON.parse(stored);
     const members = getAllMembers();
-    return Object.entries(BRANCH_MAP).map(([id, name]) => ({
+    const allBranches = Object.entries(BRANCH_MAP).map(([id, name]) => ({
       id,
       name,
       description: `${name}是中国古生物学会下属专业分会`,
       memberCount: members.filter(m => m.boundBranches.includes(id)).length,
       disabled: false,
     }));
-  }, [getAllMembers]);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Phase 1: 分会管理员只看自己的分会
+      if (adminRole === "branch_admin" && adminBranchId) {
+        return parsed.filter((b: BranchRecord) => b.id === adminBranchId);
+      }
+      return parsed;
+    }
+    // Phase 1: 分会管理员只看自己的分会
+    if (adminRole === "branch_admin" && adminBranchId) {
+      return allBranches.filter(b => b.id === adminBranchId);
+    }
+    return allBranches;
+  }, [getAllMembers, adminRole, adminBranchId]);
 
   const updateBranch = useCallback((id: string, data: Partial<BranchRecord>) => {
     const branches = getAllBranches();
@@ -1782,7 +2915,24 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getDashboardStats,
     getBranchDashboardStats,
     getFinanceDashboardStats,
+    getGlobalStats,
+    getSocietyStats,
+    getConferenceStats,
     getAllPaymentRecords,
+    getConferenceAttendees,
+    generateExportZip,
+    // Phase 6: 入会/退会审核
+    pendingMembershipApps,
+    pendingWithdrawalApps,
+    approveMembershipApplication,
+    rejectMembershipApplication,
+    approveWithdrawalApplication,
+    rejectWithdrawalApplication,
+    setMembershipApplicationTemplate: setMembershipApplicationTemplateAction,
+    setWithdrawalApplicationTemplate: setWithdrawalApplicationTemplateAction,
+    getMembershipApplicationTemplateUrl: getMembershipApplicationTemplateUrlAction,
+    getWithdrawalApplicationTemplateUrl: getWithdrawalApplicationTemplateUrlAction,
+    checkMembershipExpiry,
     getAllBranches,
     updateBranch,
     toggleBranchDisabled,

@@ -154,6 +154,10 @@ export default function Branches() {
               中国古生物学会下设11个专业分会（委员会），覆盖古无脊椎动物、古脊椎动物、古植物、孢粉、微体、地球生物学等主要研究领域，团结全国古生物学科技工作者，推动学科发展与国际交流。
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
+              <div className="flex items-center gap-2 bg-[#D9C5A0]/20 border border-[#D9C5A0]/40 rounded-full px-4 py-1.5">
+                <span className="material-symbols-outlined text-[#715a3e] text-[16px]">account_balance</span>
+                <span className="text-xs font-bold text-[#715a3e]">1 个总学会</span>
+              </div>
               <div className="flex items-center gap-2 bg-[#002B49]/5 border border-[#002B49]/10 rounded-full px-4 py-1.5">
                 <span className="material-symbols-outlined text-[#002B49] text-[16px]">groups</span>
                 <span className="text-xs font-bold text-[#002B49]">11 个专业分会</span>
@@ -181,15 +185,56 @@ export default function Branches() {
                     className="text-2xl font-bold text-[#002B49]"
                     style={{ fontFamily: "Georgia, serif" }}
                   >
-                    下属分会列表
+                    学会组织架构
                   </h2>
                   <p className="text-slate-500 text-xs mt-1">
-                    点击任意分会卡片查看详细介绍
+                    总学会 + 11个专业分会（委员会），点击任意卡片查看详细介绍
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Phase 2: 总学会卡片 — 金色边框置顶 */}
+                <div className="bg-white border-2 border-[#D9C5A0] rounded-xl p-6 shadow-md relative overflow-hidden sm:col-span-2 lg:col-span-3">
+                  {/* Golden accent bar */}
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#D9C5A0] via-[#c8a96e] to-[#D9C5A0]" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#D9C5A0] opacity-5 rounded-full translate-x-8 -translate-y-8" />
+                  <div className="flex flex-col md:flex-row items-start gap-6 relative z-10">
+                    {/* Badge */}
+                    <div className="flex-shrink-0 w-16 h-16 rounded-xl bg-gradient-to-br from-[#D9C5A0] to-[#c8a96e] flex items-center justify-center shadow-md">
+                      <span className="material-symbols-outlined text-[32px] text-white">account_balance</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h3 className="font-bold text-[#002B49] text-lg" style={{ fontFamily: "Georgia, serif" }}>中国古生物学会（总学会）</h3>
+                        <span className="text-[10px] font-bold bg-[#D9C5A0]/20 text-[#715a3e] px-2.5 py-0.5 rounded-full">上级单位</span>
+                      </div>
+                      <p className="text-sm text-slate-600 leading-relaxed mb-4 max-w-3xl">
+                        中国古生物学会是由全国古生物科技工作者自愿组成的学术性、非营利性社会团体，是中国科学技术协会的组成部分。学会成立于1979年，致力于推动古生物学领域的学术交流、科学普及与学科发展，组织全国性及国际性学术会议，促进古生物学科研成果的传播与应用。
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {["学术交流", "科学普及", "学科发展", "国际会议", "人才培养"].map(tag => (
+                          <span key={tag} className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#D9C5A0]/10 text-[#715a3e] border border-[#D9C5A0]/30">{tag}</span>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-4 text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">event</span>成立于 1979 年</span>
+                          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">location_on</span>江苏 · 南京</span>
+                          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">group</span>11 个下属分会</span>
+                        </div>
+                        <a
+                          href="http://www.chinapsc.cn/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs font-bold text-[#715a3e] hover:text-[#002B49] transition-colors border border-[#D9C5A0] px-3 py-1.5 rounded-lg hover:bg-[#D9C5A0]/10"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">open_in_new</span>访问总学会官网
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {branchesData.map((branch, idx) => (
                   <div
                     key={branch.id}
@@ -354,11 +399,19 @@ export default function Branches() {
 
                     {/* Navigation between branches */}
                     <div className="bg-white border border-[#E5E1DA] rounded-xl p-4 shadow-sm">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">其他分会</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">学会组织</p>
                       <div className="space-y-1">
+                        {/* Phase 2: 总学会入口 */}
+                        <button
+                          onClick={() => setSelectedBranch(null)}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-[#715a3e] hover:bg-[#D9C5A0]/10 rounded-lg transition-all flex items-center gap-2 border border-[#D9C5A0]/50 bg-[#D9C5A0]/5"
+                        >
+                          <span className="material-symbols-outlined text-[14px] text-[#715a3e]">account_balance</span>
+                          中国古生物学会（总学会）
+                        </button>
                         {branchesData
                           .filter((b) => b.id !== selected.id)
-                          .slice(0, 6)
+                          .slice(0, 5)
                           .map((b) => (
                             <button
                               key={b.id}
@@ -429,9 +482,16 @@ export default function Branches() {
                     <div className="bg-white border border-[#E5E1DA] rounded-xl p-6 shadow-sm">
                       <h4 className="font-bold text-[#002B49] text-sm mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-[18px]">grid_view</span>
-                        全部专业分会
+                        全部学会组织
                       </h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {/* Phase 2: 总学会快捷入口 */}
+                        <button
+                          onClick={() => setSelectedBranch(null)}
+                          className="text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all border border-[#D9C5A0] bg-[#D9C5A0]/10 text-[#715a3e] hover:bg-[#D9C5A0]/20"
+                        >
+                          总学会
+                        </button>
                         {branchesData.map((b) => (
                           <button
                             key={b.id}

@@ -39,6 +39,9 @@ function StatusBadge({ status }: { status: string }) {
   const label = MEMBERSHIP_STATUS_LABEL[status] || status;
   const colorMap: Record<string, string> = {
     not_member: "bg-gray-50 text-gray-500 border border-gray-200",
+    application_submitted: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+    application_rejected: "bg-red-50 text-red-700 border border-red-200",
+    application_approved: "bg-green-50 text-green-700 border border-green-200",
     voucher_submitted: "bg-yellow-50 text-yellow-700 border border-yellow-200",
     voucher_rejected: "bg-red-50 text-red-700 border border-red-200",
     invoice_pending: "bg-blue-50 text-blue-700 border border-blue-200",
@@ -46,6 +49,9 @@ function StatusBadge({ status }: { status: string }) {
     invoice_submitted: "bg-yellow-50 text-yellow-700 border border-yellow-200",
     invoice_rejected: "bg-red-50 text-red-700 border border-red-200",
     active: "bg-green-50 text-green-700 border border-green-200",
+    withdrawal_submitted: "bg-orange-50 text-orange-700 border border-orange-200",
+    withdrawal_rejected: "bg-red-50 text-red-700 border border-red-200",
+    withdrawn: "bg-gray-50 text-gray-500 border border-gray-200",
     expired: "bg-gray-50 text-gray-500 border border-gray-200",
   };
   return (
@@ -101,6 +107,32 @@ function MemberDetailSheet({
                 <div className="col-span-2">
                   <span className="text-muted-foreground">是否禁用：</span>{detail.disabled ? "是" : "否"}
                 </div>
+                {/* Phase 6: 入会/退会申请书 */}
+                {detail.membershipAppFileUrl && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">入会申请书：</span>
+                    <a href={detail.membershipAppFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                      {detail.membershipAppFileName || "查看文件"}
+                    </a>
+                    {detail.membershipAppStatus && (
+                      <span className="ml-2"><StatusBadge status={detail.membershipAppStatus} /></span>
+                    )}
+                    {detail.membershipAppRejectReason && (
+                      <p className="text-red-500 text-[10px] mt-1">驳回原因：{detail.membershipAppRejectReason}</p>
+                    )}
+                  </div>
+                )}
+                {detail.withdrawalAppFileUrl && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">退会申请书：</span>
+                    <a href={detail.withdrawalAppFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                      {detail.withdrawalAppFileName || "查看文件"}
+                    </a>
+                    {detail.withdrawalAppStatus && (
+                      <span className="ml-2"><StatusBadge status={detail.withdrawalAppStatus} /></span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

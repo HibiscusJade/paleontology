@@ -1,6 +1,7 @@
 // ============================================================================
 // 共享常量：会员费配置、会议状态枚举、分会 ID 映射
 // Phase 1: 数据模型底层
+// Phase 0 更新（2026-06-21）：新增总学会模型、四类会议费、用户身份扩展、入会审核状态、住宿/野外结构
 // ============================================================================
 
 // ── 会员费金额配置（前端默认值，可被后台配置覆盖） ────────────────────────────
@@ -46,17 +47,25 @@ export const CONFERENCE_STATUS = {
 
 export type ConferenceStatus = typeof CONFERENCE_STATUS[keyof typeof CONFERENCE_STATUS];
 
-/** 学会会员费状态（两阶段审核） */
+/** 学会会员费状态（两阶段审核 + 入会审核 + 退会审核）
+ *  Phase 0 新增：application_submitted, application_rejected, application_approved
+ *               withdrawal_submitted, withdrawal_rejected, withdrawn */
 export const MEMBERSHIP_STATUS = {
-  NOT_MEMBER:          "not_member",
-  VOUCHER_SUBMITTED:   "voucher_submitted",   // 凭证已上传，待初审
-  VOUCHER_REJECTED:    "voucher_rejected",    // 凭证初审驳回
-  INVOICE_PENDING:     "invoice_pending",     // 初审通过，待上传发票
-  INVOICE_OVERDUE:     "invoice_overdue",     // 发票逾期未上传
-  INVOICE_SUBMITTED:   "invoice_submitted",   // 发票已上传，待终审
-  INVOICE_REJECTED:    "invoice_rejected",    // 发票终审驳回
-  ACTIVE:              "active",              // 正式会员
-  EXPIRED:             "expired",             // 已过期
+  NOT_MEMBER:             "not_member",
+  APPLICATION_SUBMITTED:  "application_submitted",   // 入会申请书已提交，待审核
+  APPLICATION_REJECTED:   "application_rejected",    // 入会申请被驳回（可重新提交）
+  APPLICATION_APPROVED:   "application_approved",    // 入会申请通过，待缴费
+  VOUCHER_SUBMITTED:      "voucher_submitted",       // 凭证已上传，待初审
+  VOUCHER_REJECTED:       "voucher_rejected",        // 凭证初审驳回
+  INVOICE_PENDING:        "invoice_pending",         // 初审通过，待上传发票
+  INVOICE_OVERDUE:        "invoice_overdue",         // 发票逾期未上传
+  INVOICE_SUBMITTED:      "invoice_submitted",       // 发票已上传，待终审
+  INVOICE_REJECTED:       "invoice_rejected",        // 发票终审驳回
+  ACTIVE:                 "active",                  // 正式会员
+  WITHDRAWAL_SUBMITTED:   "withdrawal_submitted",    // 退会申请已提交，待审核
+  WITHDRAWAL_REJECTED:    "withdrawal_rejected",     // 退会申请被驳回
+  WITHDRAWN:              "withdrawn",               // 已退会
+  EXPIRED:                "expired",                 // 已过期
 } as const;
 
 export type MembershipStatus = typeof MEMBERSHIP_STATUS[keyof typeof MEMBERSHIP_STATUS];
@@ -75,6 +84,20 @@ export const USER_TYPE_LABEL: Record<string, string> = {
   regular:     "普通用户",
   non_member:  "非会员",
   member:      "正式会员",
+};
+
+// ── 用户身份扩展（学生/非学生维度） Phase 0 新增 ──────────────────────────
+
+export const USER_IDENTITY = {
+  STUDENT:     "student",
+  NON_STUDENT: "non_student",
+} as const;
+
+export type UserIdentity = typeof USER_IDENTITY[keyof typeof USER_IDENTITY];
+
+export const USER_IDENTITY_LABEL: Record<string, string> = {
+  student:     "学生",
+  non_student: "非学生",
 };
 
 // ── 状态 → UI 标签映射 ────────────────────────────────────────────────────
@@ -102,19 +125,45 @@ export const CONFERENCE_STATUS_COLOR: Record<string, string> = {
 };
 
 export const MEMBERSHIP_STATUS_LABEL: Record<string, string> = {
-  not_member:         "尚未入会",
-  voucher_submitted:  "凭证初审中",
-  voucher_rejected:   "凭证被驳回",
-  invoice_pending:    "待上传发票",
-  invoice_overdue:    "发票逾期",
-  invoice_submitted:  "发票终审中",
-  invoice_rejected:   "发票被驳回",
-  active:             "✓ 会员资格有效",
-  expired:            "已过期",
+  not_member:           "尚未入会",
+  application_submitted: "入会申请审核中",
+  application_rejected:  "入会申请被驳回",
+  application_approved:  "入会申请已通过",
+  voucher_submitted:    "凭证初审中",
+  voucher_rejected:     "凭证被驳回",
+  invoice_pending:      "待上传发票",
+  invoice_overdue:      "发票逾期",
+  invoice_submitted:    "发票终审中",
+  invoice_rejected:     "发票被驳回",
+  active:               "✓ 会员资格有效",
+  withdrawal_submitted:  "退会申请审核中",
+  withdrawal_rejected:   "退会申请被驳回",
+  withdrawn:             "已退会",
+  expired:              "已过期",
 };
 
-// ── 分会 ID 映射（集中管理，避免 Services.tsx / PersonalCenter.tsx 重复定义） ──
+// ── 学会/分会模型 Phase 0 更新 ──────────────────────────────────────────
 
+/** 总学会 ID 常量 */
+export const TOTAL_SOCIETY_ID = "zgswxh";
+
+/** 所有学会单元（总学会 + 11 个分会），总学会置顶 */
+export const ALL_SOCIETY_UNITS: Record<string, string> = {
+  [TOTAL_SOCIETY_ID]: "中国古生物学会（总学会）",
+  gwjzdwxfh: "古无脊椎动物学分会",
+  kpgzwyh:   "科普工作委员会",
+  bfxfh:     "孢粉学分会",
+  wtxfh:     "微体学分会",
+  hszlzwyh:  "化石藻类专业委员会",
+  gzwxfh:    "古植物学分会",
+  dqswx:     "地球生物学分会",
+  gst:       "古生态专业分会",
+  gjzdw:     "古脊椎动物学分会",
+  swcj:      "生物沉积学分会",
+  xjsxff:    "新技术新方法专业委员会",
+};
+
+/** 分会 ID 映射（11 个分会，不含总学会） — 保持向后兼容 */
 export const BRANCH_MAP: Record<string, string> = {
   gwjzdwxfh: "古无脊椎动物学分会",
   kpgzwyh:   "科普工作委员会",
@@ -129,9 +178,15 @@ export const BRANCH_MAP: Record<string, string> = {
   xjsxff:    "新技术新方法专业委员会",
 };
 
-export const VALID_BRANCH_IDS = new Set(Object.keys(BRANCH_MAP));
+/** 仅分会 ID 列表（11 个，不含总学会） */
+export const BRANCH_IDS: string[] = Object.keys(BRANCH_MAP);
 
-/** 会议 ID → 所属分会 ID 映射 */
+export const VALID_BRANCH_IDS = new Set(BRANCH_IDS);
+
+/** 所有学会单元 ID 列表（总学会 + 11 分会） */
+export const ALL_SOCIETY_IDS: string[] = Object.keys(ALL_SOCIETY_UNITS);
+
+/** 会议 ID → 所属学会/分会 ID 映射 */
 export const CONFERENCE_BRANCH_MAP: Record<string, string> = {
   "conf-1": "wtxfh",    // 微体学分会
   "conf-2": "gzwxfh",   // 古植物学分会
@@ -142,7 +197,91 @@ export const CONFERENCE_BRANCH_MAP: Record<string, string> = {
   "conf-7": "dqswx",    // 地球生物学分会
   "conf-8": "xjsxff",   // 新技术新方法专业委员会
   "demo-conf": "gwjzdwxfh", // 演示会议
+  "conf-zgswxh-1": "zgswxh", // 中国古生物学会（总学会）
+  "conf-zgswxh-2": "zgswxh", // 中国古生物学会（总学会）
 };
+
+// ── 四类会议费类型 Phase 0 新增 ────────────────────────────────────────
+
+export const CONFERENCE_FEE_TYPE = {
+  STUDENT_MEMBER:           "student_member",
+  NON_STUDENT_MEMBER:       "non_student_member",
+  STUDENT_NON_MEMBER:       "student_non_member",
+  NON_STUDENT_NON_MEMBER:   "non_student_non_member",
+} as const;
+
+export type ConferenceFeeType = typeof CONFERENCE_FEE_TYPE[keyof typeof CONFERENCE_FEE_TYPE];
+
+export const CONFERENCE_FEE_TYPE_LABEL: Record<string, string> = {
+  student_member:           "学生会员",
+  non_student_member:       "非学生会员",
+  student_non_member:       "学生（非会员）",
+  non_student_non_member:   "非学生（非会员）",
+};
+
+/** 会议费用配置（四类价格） */
+export interface ConferenceFeeConfig {
+  studentMember: number;           // 学生会员会议费
+  nonStudentMember: number;        // 非学生会员会议费
+  studentNonMember: number;        // 学生（非会员）会议费
+  nonStudentNonMember: number;     // 非学生（非会员）会议费
+}
+
+/** 四类会议费字段映射（feeType → feeConfig 属性名） */
+export const CONFERENCE_FEE_TYPE_TO_FIELD: Record<ConferenceFeeType, keyof ConferenceFeeConfig> = {
+  student_member:           "studentMember",
+  non_student_member:       "nonStudentMember",
+  student_non_member:       "studentNonMember",
+  non_student_non_member:   "nonStudentNonMember",
+};
+
+/** 根据用户类型和学生身份推导会议费类型 */
+export function deriveFeeType(userType: UserType, isStudent: boolean): ConferenceFeeType {
+  if (userType === USER_TYPE.MEMBER) {
+    return isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
+  }
+  // non_member 或 regular 都视为非会员
+  return isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
+}
+
+/** 从 ConferenceFeeConfig 中获取指定类型的费用
+ *  返回 0 表示该人群报名通道关闭 */
+export function getFeeFromConfig(config: ConferenceFeeConfig, feeType: ConferenceFeeType): number {
+  const field = CONFERENCE_FEE_TYPE_TO_FIELD[feeType];
+  return config[field] ?? 0;
+}
+
+/** 根据会议 ID 和费用类型获取会议费（新接口）
+ *  Phase 0 新增，后续 Phase 替换旧 getConferenceFee */
+export function getConferenceFeeByType(confId: string, feeType: ConferenceFeeType): number {
+  const config = getConferenceFeeConfig(confId);
+  return getFeeFromConfig(config, feeType);
+}
+
+/** 获取会议的四类费用配置
+ *  优先从 localStorage 读取，fallback 到旧 CONFERENCE_FEE_MEMBER 兼容计算 */
+export function getConferenceFeeConfig(confId: string): ConferenceFeeConfig {
+  const stored = localStorage.getItem("paleo_admin_conference_fee_configs");
+  if (stored) {
+    try {
+      const configs = JSON.parse(stored);
+      if (configs[confId]) {
+        return configs[confId];
+      }
+    } catch {
+      // fallback
+    }
+  }
+  // fallback：从旧 CONFERENCE_FEE_MEMBER 计算四类价格（向后兼容）
+  const memberFee = CONFERENCE_FEE_MEMBER[confId] ?? 1000;
+  const nonMemberFee = Math.round(memberFee * 1.1);
+  return {
+    studentMember: Math.round(memberFee * 0.67),         // 学生会员 ≈ 会员价 × 2/3
+    nonStudentMember: memberFee,                          // 非学生会员 = 会员价
+    studentNonMember: Math.round(nonMemberFee * 0.67),   // 学生非会员 ≈ 非会员价 × 2/3
+    nonStudentNonMember: nonMemberFee,                    // 非学生非会员 = 非会员价
+  };
+}
 
 // ── 宽限期常量 ────────────────────────────────────────────────────────────
 
@@ -152,9 +291,10 @@ export const INVOICE_GRACE_PERIOD_WORKDAYS = 7;
 /** 发票截止日临近提醒阈值（天） */
 export const INVOICE_DEADLINE_WARNING_DAYS = 3;
 
-// ── 会议费非会员价配置（会员价 +10%） ──────────────────────────────────────
+// ── 会议费非会员价配置（旧接口，向后兼容，后续 Phase 逐步替换） ──────────
 
-/** 会议 ID → 会员价映射 */
+/** 会议 ID → 会员价映射
+ *  @deprecated Phase 0 起请使用 getConferenceFeeConfig() 获取四类价格 */
 export const CONFERENCE_FEE_MEMBER: Record<string, number> = {
   "demo-conf": 300,
   "conf-1": 1200,
@@ -165,13 +305,73 @@ export const CONFERENCE_FEE_MEMBER: Record<string, number> = {
   "conf-6": 1100,
   "conf-7": 600,
   "conf-8": 500,
+  "conf-zgswxh-1": 1500,
+  "conf-zgswxh-2": 2000,
 };
 
-/** 根据用户类型获取会议费 */
+/** 根据用户类型获取会议费
+ *  @deprecated Phase 0 起请使用 getConferenceFeeByType(confId, feeType) */
 export function getConferenceFee(confId: string, userType: string): number {
   const memberFee = CONFERENCE_FEE_MEMBER[confId] ?? 1000;
   if (userType === "non_member") {
     return Math.round(memberFee * 1.1);
   }
   return memberFee;
+}
+
+// ── 住宿类型枚举 Phase 0 新增 ────────────────────────────────────────────
+
+export const ACCOMMODATION_TYPE = {
+  MALE_SINGLE:    "male_single",
+  MALE_DOUBLE:    "male_double",
+  FEMALE_SINGLE:  "female_single",
+  FEMALE_DOUBLE:  "female_double",
+  SELF_ARRANGED:  "self_arranged",
+} as const;
+
+export type AccommodationType = typeof ACCOMMODATION_TYPE[keyof typeof ACCOMMODATION_TYPE];
+
+export const ACCOMMODATION_TYPE_LABEL: Record<string, string> = {
+  male_single:    "男单间",
+  male_double:    "男双人间",
+  female_single:  "女单间",
+  female_double:  "女双人间",
+  self_arranged:  "自主安排",
+};
+
+// ── 野外路线结构 Phase 0 新增 ────────────────────────────────────────────
+
+/** 野外路线阶段 */
+export const FIELD_TRIP_PHASE = {
+  PRE:    "pre",
+  DURING: "during",
+  POST:   "post",
+} as const;
+
+export type FieldTripPhase = typeof FIELD_TRIP_PHASE[keyof typeof FIELD_TRIP_PHASE];
+
+export const FIELD_TRIP_PHASE_LABEL: Record<string, string> = {
+  pre:    "会前",
+  during: "会中",
+  post:   "会后",
+};
+
+/** 野外路线 */
+export interface FieldTripRoute {
+  id: string;
+  phase: FieldTripPhase;  // 会前/会中/会后
+  name: string;            // 路线名称
+  order: number;           // 路线序号 1-5
+}
+
+/** 用户野外报名选择 */
+export interface FieldTripSelections {
+  pre: string[];      // 会前选中的路线 ID
+  during: string[];   // 会中选中的路线 ID
+  post: string[];     // 会后选中的路线 ID
+}
+
+/** 创建空的野外选择 */
+export function createEmptyFieldTripSelections(): FieldTripSelections {
+  return { pre: [], during: [], post: [] };
 }

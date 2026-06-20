@@ -7,8 +7,15 @@ import {
   MEMBERSHIP_STATUS,
   USER_TYPE,
   type UserType,
+  type ConferenceFeeType,
+  type ConferenceFeeConfig,
+  type AccommodationType,
+  type FieldTripSelections,
+  createEmptyFieldTripSelections,
   getMembershipFee as getConfiguredMembershipFee,
   getConferenceFee as getConfiguredConferenceFee,
+  getConferenceFeeConfig as getConfiguredFeeConfig,
+  deriveFeeType,
 } from "@shared/constants";
 
 // ============================================================================
@@ -24,6 +31,8 @@ export interface User {
   unit: string;
   role: "学生" | "教师" | "嘉宾";
   title?: string;
+  // Phase 0: 用户身份扩展（学生/非学生维度）
+  isStudent?: boolean;
   // 会员类型预留字段（当前默认普通会员，后续迭代细化）
   memberType?: MemberType;
 }
@@ -80,12 +89,20 @@ export interface ConferenceReg {
   gender: "男" | "女";
   unit: string;
   role: "学生" | "教师" | "嘉宾";
+  /** @deprecated Phase 4 起请使用 accommodationType */
   accommodation: "单间" | "双人间" | "自行安排";
   session: string;
   presentationType: "口头报告" | "展板报告" | "仅参会";
   reportTitle?: string;
   abstractFileName?: string;
   lastUpdated?: string;
+  // Phase 4: 摘要文件
+  abstractFileUrl?: string;
+  abstractSubmitTime?: string;
+  // Phase 4: 住宿（性别化选项）
+  accommodationType?: AccommodationType;
+  // Phase 4: 野外报名
+  fieldTripSelections?: FieldTripSelections;
   /** @deprecated 旧字段兼容，Phase 2 移除 */
   conferenceForm?: any;
   /** @deprecated 旧字段兼容，Phase 2 移除 */
@@ -99,6 +116,25 @@ export interface SystemNotification {
   time: string;
   read: boolean;
   type: "info" | "success" | "warning";
+}
+
+// Phase 6: 入会/退会申请书数据
+export interface MembershipApplication {
+  status: string;          // application_submitted | application_rejected | application_approved
+  applicationFileUrl: string;
+  applicationFileName: string;
+  submitTime: string;
+  reviewTime?: string;
+  rejectReason?: string;
+}
+
+export interface WithdrawalApplication {
+  status: string;          // withdrawal_submitted | withdrawal_rejected | withdrawn
+  applicationFileUrl: string;
+  applicationFileName: string;
+  submitTime: string;
+  reviewTime?: string;
+  rejectReason?: string;
 }
 
 interface MembershipContextType {
@@ -144,6 +180,10 @@ interface MembershipContextType {
   submitConferenceForm: (confId: string, formData: Omit<ConferenceReg, "status" | "paymentVoucher" | "invoiceUrl">) => void;
   deleteAbstract: (confId: string) => void;
   uploadAbstract: (confId: string, fileName: string) => void;
+  // Phase 4: 摘要/住宿/野外
+  uploadAbstractFile: (confId: string, fileUrl: string, fileName: string) => void;
+  setAccommodation: (confId: string, type: AccommodationType) => void;
+  toggleFieldTripRoute: (confId: string, phase: "pre" | "during" | "post", routeId: string) => void;
 
   // ── 内部模拟审核（两阶段，演示用） ──
   /** @deprecated Phase 2 拆分为初审/终审 */
@@ -179,7 +219,25 @@ interface MembershipContextType {
 
   // ── 配置读取 ──
   getMembershipFee: (memberType?: string) => number;
+  /** @deprecated Phase 0 起请使用 getUserFeeType + getConferenceFeeConfig */
   getConferenceFee: (confId: string) => number;
+  // Phase 0: New fee API
+  getUserFeeType: () => ConferenceFeeType;
+  getConferenceFeeConfig: (confId: string) => ConferenceFeeConfig;
+  // Phase 2: File download helpers
+  canDownloadStampedNotice: (confId: string) => boolean;
+  canDownloadAbstractTemplate: (confId: string) => boolean;
+  getConferenceFileUrl: (confId: string, fileType: "stampedNotice" | "abstractTemplate") => string | null;
+
+  // Phase 6: 入会/退会申请
+  membershipApplication: MembershipApplication | null;
+  withdrawalApplication: WithdrawalApplication | null;
+  submitMembershipApplication: (applicationFileUrl: string, applicationFileName: string) => void;
+  cancelMembershipApplication: () => void;
+  submitWithdrawalApplication: (applicationFileUrl: string, applicationFileName: string) => void;
+  cancelWithdrawalApplication: () => void;
+  getMembershipApplicationTemplateUrl: () => string;
+  getWithdrawalApplicationTemplateUrl: () => string;
 
   // General Helpers
   markNotificationRead: (id: string) => void;
@@ -255,6 +313,9 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [allUsers, setAllUsers] = useState<User[]>(MOCK_USER_DB.map(({ password, ...u }) => u));
   const [userType, setUserType] = useState<UserType>("regular");
   const [membershipChoiceMade, setMembershipChoiceMade] = useState(false);
+  // Phase 6: 入会/退会申请书状态
+  const [membershipApplication, setMembershipApplication] = useState<MembershipApplication | null>(null);
+  const [withdrawalApplication, setWithdrawalApplication] = useState<WithdrawalApplication | null>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -306,6 +367,15 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const choiceKey = `paleo_choice_made_${email}`;
     setMembershipChoiceMade(localStorage.getItem(choiceKey) === "true");
+
+    // Phase 6: 加载入会/退会申请书
+    const appKey = `paleo_membership_application_${email}`;
+    const storedApp = localStorage.getItem(appKey);
+    setMembershipApplication(storedApp ? JSON.parse(storedApp) : null);
+
+    const wdKey = `paleo_withdrawal_application_${email}`;
+    const storedWd = localStorage.getItem(wdKey);
+    setWithdrawalApplication(storedWd ? JSON.parse(storedWd) : null);
   };
 
   const saveState = (key: string, data: any) => {
@@ -550,14 +620,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    if (userType === "regular") {
-      toast.error("请先选择您的参与方式（会员/非会员）后再绑定分会。");
-      return;
-    }
-    if (userType === "member" && societyMembership.status !== "active" && societyMembership.status !== "invoice_pending" && societyMembership.status !== "invoice_submitted") {
-      toast.error("您尚未完成会员缴费验证，请先前往会员服务完成入会流程。");
-      return;
-    }
+    // Phase 2: 所有注册用户均可绑定任意学会/分会（无门槛）
 
     const isBound = boundBranches.includes(branchId);
     let updatedBranches: string[];
@@ -741,6 +804,67 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setConferenceRegs(updatedRegs);
     saveState(`paleo_confs_${currentUser.email}`, updatedRegs);
     toast.success(`新摘要【${fileName}】上传成功！`);
+  };
+
+  // Phase 4: 上传摘要文件（含 URL）
+  const uploadAbstractFile = (confId: string, fileUrl: string, fileName: string) => {
+    if (!currentUser) return;
+    const currentReg = conferenceRegs[confId];
+    if (!currentReg) return;
+
+    const now = new Date().toLocaleString("zh-CN");
+    const updatedReg: ConferenceReg = {
+      ...currentReg,
+      abstractFileName: fileName,
+      abstractFileUrl: fileUrl,
+      abstractSubmitTime: now,
+      lastUpdated: now,
+    };
+    const updatedRegs = { ...conferenceRegs, [confId]: updatedReg };
+    setConferenceRegs(updatedRegs);
+    saveState(`paleo_confs_${currentUser.email}`, updatedRegs);
+    toast.success(`论文摘要【${fileName}】上传成功！`);
+  };
+
+  // Phase 4: 设置住宿类型（性别化选项）
+  const setAccommodation = (confId: string, type: AccommodationType) => {
+    if (!currentUser) return;
+    const currentReg = conferenceRegs[confId];
+    if (!currentReg) return;
+
+    const updatedReg: ConferenceReg = {
+      ...currentReg,
+      accommodationType: type,
+      lastUpdated: new Date().toLocaleString("zh-CN"),
+    };
+    const updatedRegs = { ...conferenceRegs, [confId]: updatedReg };
+    setConferenceRegs(updatedRegs);
+    saveState(`paleo_confs_${currentUser.email}`, updatedRegs);
+  };
+
+  // Phase 4: 切换野外路线选择
+  const toggleFieldTripRoute = (confId: string, phase: "pre" | "during" | "post", routeId: string) => {
+    if (!currentUser) return;
+    const currentReg = conferenceRegs[confId];
+    if (!currentReg) return;
+
+    const currentSelections = currentReg.fieldTripSelections || createEmptyFieldTripSelections();
+    const phaseRoutes = [...currentSelections[phase]];
+    const idx = phaseRoutes.indexOf(routeId);
+    if (idx >= 0) {
+      phaseRoutes.splice(idx, 1);
+    } else {
+      phaseRoutes.push(routeId);
+    }
+
+    const updatedReg: ConferenceReg = {
+      ...currentReg,
+      fieldTripSelections: { ...currentSelections, [phase]: phaseRoutes },
+      lastUpdated: new Date().toLocaleString("zh-CN"),
+    };
+    const updatedRegs = { ...conferenceRegs, [confId]: updatedReg };
+    setConferenceRegs(updatedRegs);
+    saveState(`paleo_confs_${currentUser.email}`, updatedRegs);
   };
 
   // ==========================================
@@ -1235,6 +1359,160 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // ==========================================
+  // Phase 6: 入会/退会申请
+  // ==========================================
+
+  /** 提交入会申请书 → status = application_submitted */
+  const submitMembershipApplicationAction = (applicationFileUrl: string, applicationFileName: string) => {
+    if (!currentUser) { toast.error("请先登录系统。"); return; }
+
+    const app: MembershipApplication = {
+      status: "application_submitted",
+      applicationFileUrl,
+      applicationFileName,
+      submitTime: new Date().toLocaleString("zh-CN"),
+    };
+
+    setMembershipApplication(app);
+    const email = currentUser.email;
+    localStorage.setItem(`paleo_membership_application_${email}`, JSON.stringify(app));
+
+    // 同步更新会员状态
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "application_submitted",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "入会申请书已提交",
+      content: "您的入会申请书已成功提交，管理员将在1-3个工作日内审核。审核通过后即可缴纳会费。",
+      type: "info",
+    });
+
+    toast.success("入会申请书已提交，请等待管理员审核。");
+  };
+
+  /** 取消入会申请（仅在审核中时可用） */
+  const cancelMembershipApplicationAction = () => {
+    if (!currentUser) { toast.error("请先登录系统。"); return; }
+    if (!membershipApplication || membershipApplication.status !== "application_submitted") {
+      toast.error("当前没有待审核的入会申请。");
+      return;
+    }
+
+    setMembershipApplication(null);
+    const email = currentUser.email;
+    localStorage.removeItem(`paleo_membership_application_${email}`);
+
+    // 恢复会员状态
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "not_member",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "入会申请已取消",
+      content: "您的入会申请书已取消。",
+      type: "info",
+    });
+
+    toast.info("入会申请已取消。");
+  };
+
+  /** 提交退会申请书 → status = withdrawal_submitted */
+  const submitWithdrawalApplicationAction = (applicationFileUrl: string, applicationFileName: string) => {
+    if (!currentUser) { toast.error("请先登录系统。"); return; }
+
+    const app: WithdrawalApplication = {
+      status: "withdrawal_submitted",
+      applicationFileUrl,
+      applicationFileName,
+      submitTime: new Date().toLocaleString("zh-CN"),
+    };
+
+    setWithdrawalApplication(app);
+    const email = currentUser.email;
+    localStorage.setItem(`paleo_withdrawal_application_${email}`, JSON.stringify(app));
+
+    // 同步更新会员状态
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "withdrawal_submitted",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "退会申请已提交",
+      content: "您的退会申请书已提交，管理员审核通过后会员资格将即时终止。已缴费的待参会订单保留，可继续以非会员身份参会。",
+      type: "warning",
+    });
+
+    toast.success("退会申请已提交，请等待管理员审核。");
+  };
+
+  /** 取消退会申请（仅在审核中时可用） */
+  const cancelWithdrawalApplicationAction = () => {
+    if (!currentUser) { toast.error("请先登录系统。"); return; }
+    if (!withdrawalApplication || withdrawalApplication.status !== "withdrawal_submitted") {
+      toast.error("当前没有待审核的退会申请。");
+      return;
+    }
+
+    setWithdrawalApplication(null);
+    const email = currentUser.email;
+    localStorage.removeItem(`paleo_withdrawal_application_${email}`);
+
+    // 恢复为 active 状态
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "active",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "退会申请已取消",
+      content: "您的退会申请书已取消，会员资格恢复正常。",
+      type: "info",
+    });
+
+    toast.info("退会申请已取消。");
+  };
+
+  /** 获取入会申请书模板下载 URL */
+  const getMembershipApplicationTemplateUrl = (): string => {
+    const stored = localStorage.getItem("paleo_membership_application_template");
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        return data.url || "";
+      } catch { return ""; }
+    }
+    return "";
+  };
+
+  /** 获取退会申请书模板下载 URL */
+  const getWithdrawalApplicationTemplateUrl = (): string => {
+    const stored = localStorage.getItem("paleo_withdrawal_application_template");
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        return data.url || "";
+      } catch { return ""; }
+    }
+    return "";
+  };
+
   const chooseMembershipPath = (path: "member" | "non_member") => {
     if (!currentUser) { toast.error("请先登录系统。"); return; }
 
@@ -1268,6 +1546,39 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const getConferenceFeeAction = (confId: string): number => {
     return getConfiguredConferenceFee(confId, userType);
+  };
+
+  // Phase 0: New fee type API
+  const getUserFeeType = (): ConferenceFeeType => {
+    return deriveFeeType(userType, currentUser?.isStudent ?? (currentUser?.role === "学生"));
+  };
+
+  const getConferenceFeeConfigAction = (confId: string): ConferenceFeeConfig => {
+    return getConfiguredFeeConfig(confId);
+  };
+
+  // Phase 2: File download helpers — 盖章通知和摘要模板仅在缴费确认后解锁
+  const canDownloadStampedNotice = (confId: string): boolean => {
+    const reg = conferenceRegs[confId];
+    if (!reg) return false;
+    // 仅缴费终审通过 (confirmed) 后才可下载盖章通知
+    return reg.status === "confirmed" || reg.status === "approved_invoice" || reg.status === "active";
+  };
+
+  const canDownloadAbstractTemplate = (confId: string): boolean => {
+    const reg = conferenceRegs[confId];
+    if (!reg) return false;
+    // 仅缴费终审通过 (confirmed) 后才可下载摘要模板
+    return reg.status === "confirmed" || reg.status === "approved_invoice" || reg.status === "active";
+  };
+
+  const getConferenceFileUrl = (confId: string, fileType: "stampedNotice" | "abstractTemplate"): string | null => {
+    // Stub — data will come from ConferenceRecord in Phase 2
+    const confs = JSON.parse(localStorage.getItem("paleo_admin_conferences_db") || "[]");
+    const conf = confs.find((c: any) => c.id === confId);
+    if (!conf) return null;
+    if (fileType === "stampedNotice") return conf.stampedNoticeUrl || null;
+    return conf.abstractTemplateUrl || null;
   };
 
   // ==========================================
@@ -1342,12 +1653,14 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       "conf-6": "古生态学与古环境重建国际研讨会",
       "conf-7": "地球生物学前沿论坛",
       "conf-8": "古生物学新技术新方法专题研讨会",
+      "conf-zgswxh-1": "中国古生物学会第32届学术年会",
+      "conf-zgswxh-2": "中国古生物学会国际古生物学前沿论坛",
     };
     return c[id] || "学术会议";
   };
 
   const getConferenceBranchId = (confId: string): string | null => {
-    // 使用 shared/constants.ts CONFERENCE_BRANCH_MAP 中的实际分会 ID
+    // 使用 shared/constants.ts CONFERENCE_BRANCH_MAP 中的实际学会/分会 ID
     const map: { [key: string]: string } = {
       "conf-1": "wtxfh",     // 微体学分会
       "conf-2": "gzwxfh",    // 古植物学分会
@@ -1358,6 +1671,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       "conf-7": "dqswx",     // 地球生物学分会
       "conf-8": "xjsxff",    // 新技术新方法专业委员会
       "demo-conf": "gwjzdwxfh", // 古无脊椎动物学分会
+      "conf-zgswxh-1": "zgswxh", // 中国古生物学会（总学会）
+      "conf-zgswxh-2": "zgswxh", // 中国古生物学会（总学会）
     };
     return map[confId] || null;
   };
@@ -1374,6 +1689,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       "conf-7": 600,
       "conf-8": 500,
       "demo-conf": 300,
+      "conf-zgswxh-1": 1500,
+      "conf-zgswxh-2": 2000,
     };
     return map[confId] || 1000;
   };
@@ -1403,6 +1720,9 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       submitConferenceForm,
       deleteAbstract,
       uploadAbstract,
+      uploadAbstractFile,
+      setAccommodation,
+      toggleFieldTripRoute,
       simApproveSocietyMembership,
       simRejectSocietyMembership,
       simApproveConference,
@@ -1421,6 +1741,20 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       handleMembershipRenewal,
       getMembershipFee,
       getConferenceFee: getConferenceFeeAction,
+      getUserFeeType,
+      getConferenceFeeConfig: getConferenceFeeConfigAction,
+      canDownloadStampedNotice,
+      canDownloadAbstractTemplate,
+      getConferenceFileUrl,
+      // Phase 6: 入会/退会申请
+      membershipApplication,
+      withdrawalApplication,
+      submitMembershipApplication: submitMembershipApplicationAction,
+      cancelMembershipApplication: cancelMembershipApplicationAction,
+      submitWithdrawalApplication: submitWithdrawalApplicationAction,
+      cancelWithdrawalApplication: cancelWithdrawalApplicationAction,
+      getMembershipApplicationTemplateUrl,
+      getWithdrawalApplicationTemplateUrl,
       userType,
       membershipChoiceMade,
       chooseMembershipPath,

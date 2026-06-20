@@ -69,7 +69,8 @@ export default function LoginJoinDialog({ open, onOpenChange, initialTab = "logi
       gender,
       unit,
       role: (role || "教师") as "学生" | "教师" | "嘉宾",
-      title: title || undefined
+      title: title || undefined,
+      isStudent: (role || "教师") === "学生",
     }, password);
 
     if (success) {

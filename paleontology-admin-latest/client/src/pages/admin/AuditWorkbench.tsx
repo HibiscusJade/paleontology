@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useAdmin, type ReviewItem } from "@/contexts/AdminContext";
+import { useAdmin, type ReviewItem, type MembershipAppRecord, type WithdrawalAppRecord } from "@/contexts/AdminContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -666,23 +666,255 @@ function InvoiceTab() {
   );
 }
 
+// Phase 6: 入会申请审核标签页
+function MembershipAppTab() {
+  const {
+    pendingMembershipApps,
+    approveMembershipApplication,
+    rejectMembershipApplication,
+  } = useAdmin();
+
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [rejectItem, setRejectItem] = useState<MembershipAppRecord | null>(null);
+
+  const handlePreview = (url: string) => {
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  const handleReject = (reason: string) => {
+    if (!rejectItem) return;
+    rejectMembershipApplication(rejectItem.userEmail, reason);
+    setRejectItem(null);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <CardTitle className="text-lg">入会申请审核</CardTitle>
+              <Badge variant="secondary" className="text-sm">{pendingMembershipApps.length} 条待审</Badge>
+            </div>
+          </div>
+          <CardDescription>审核用户提交的入会申请书，通过后用户可进入缴费阶段</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pendingMembershipApps.length === 0 ? (
+            <div className="flex items-center justify-center h-48 text-muted-foreground">
+              暂无待审核的入会申请
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>申请人</TableHead>
+                  <TableHead>邮箱</TableHead>
+                  <TableHead>申请时间</TableHead>
+                  <TableHead>申请书</TableHead>
+                  <TableHead>操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingMembershipApps.map((app) => (
+                  <TableRow key={app.id}>
+                    <TableCell className="font-medium">{app.userName}</TableCell>
+                    <TableCell className="max-w-[180px] truncate" title={app.userEmail}>{app.userEmail}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{app.submitTime}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePreview(app.applicationFileUrl)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        查看
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-300 hover:bg-green-50 h-8 px-2 text-xs"
+                          onClick={() => approveMembershipApplication(app.userEmail)}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          通过
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50 h-8 px-2 text-xs"
+                          onClick={() => setRejectItem(app)}
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          驳回
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <FilePreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} url={previewUrl} />
+
+      <RejectDialog
+        open={!!rejectItem}
+        onOpenChange={(open) => { if (!open) setRejectItem(null); }}
+        onConfirm={handleReject}
+        title="驳回入会申请"
+      />
+    </div>
+  );
+}
+
+// Phase 6: 退会申请审核标签页
+function WithdrawalAppTab() {
+  const {
+    pendingWithdrawalApps,
+    approveWithdrawalApplication,
+    rejectWithdrawalApplication,
+  } = useAdmin();
+
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [rejectItem, setRejectItem] = useState<WithdrawalAppRecord | null>(null);
+
+  const handlePreview = (url: string) => {
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  const handleReject = (reason: string) => {
+    if (!rejectItem) return;
+    rejectWithdrawalApplication(rejectItem.userEmail, reason);
+    setRejectItem(null);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <CardTitle className="text-lg">退会申请审核</CardTitle>
+              <Badge variant="secondary" className="text-sm">{pendingWithdrawalApps.length} 条待审</Badge>
+            </div>
+          </div>
+          <CardDescription>审核用户提交的退会申请书，通过后会员资格即时终止</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pendingWithdrawalApps.length === 0 ? (
+            <div className="flex items-center justify-center h-48 text-muted-foreground">
+              暂无待审核的退会申请
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>申请人</TableHead>
+                  <TableHead>邮箱</TableHead>
+                  <TableHead>会员状态</TableHead>
+                  <TableHead>有效期</TableHead>
+                  <TableHead>申请时间</TableHead>
+                  <TableHead>申请书</TableHead>
+                  <TableHead>操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingWithdrawalApps.map((app) => (
+                  <TableRow key={app.id}>
+                    <TableCell className="font-medium">{app.userName}</TableCell>
+                    <TableCell className="max-w-[180px] truncate" title={app.userEmail}>{app.userEmail}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={app.membershipStatus} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{app.expiryDate || "-"}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{app.submitTime}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePreview(app.applicationFileUrl)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        查看
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-300 hover:bg-green-50 h-8 px-2 text-xs"
+                          onClick={() => approveWithdrawalApplication(app.userEmail)}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          通过
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50 h-8 px-2 text-xs"
+                          onClick={() => setRejectItem(app)}
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          驳回
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <FilePreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} url={previewUrl} />
+
+      <RejectDialog
+        open={!!rejectItem}
+        onOpenChange={(open) => { if (!open) setRejectItem(null); }}
+        onConfirm={handleReject}
+        title="驳回退会申请"
+      />
+    </div>
+  );
+}
+
 export default function AuditWorkbench() {
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-strata-blue-deep">审核工作台</h1>
-        <p className="text-muted-foreground mt-1">管理会员费和会议费的凭证初审与发票终审</p>
+        <p className="text-muted-foreground mt-1">管理会员费和会议费的凭证初审与发票终审，以及入会/退会申请审核</p>
       </div>
       <Tabs defaultValue="voucher" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="voucher">凭证初审</TabsTrigger>
           <TabsTrigger value="invoice">发票终审</TabsTrigger>
+          <TabsTrigger value="membership-app">入会申请</TabsTrigger>
+          <TabsTrigger value="withdrawal-app">退会申请</TabsTrigger>
         </TabsList>
         <TabsContent value="voucher" className="mt-4">
           <VoucherTab />
         </TabsContent>
         <TabsContent value="invoice" className="mt-4">
           <InvoiceTab />
+        </TabsContent>
+        <TabsContent value="membership-app" className="mt-4">
+          <MembershipAppTab />
+        </TabsContent>
+        <TabsContent value="withdrawal-app" className="mt-4">
+          <WithdrawalAppTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,0 +1,60 @@
+# Dependencies (both projects)
+**/node_modules/
+**/.pnpm-store/
+
+# Build outputs
+**/dist/
+**/build/
+
+# Logs
+**/logs/
+**/*.log
+**/.manus-logs/
+
+# IDE and editor
+**/.idea/
+**/.vscode/
+*.swp
+
+# OS files
+**/.DS_Store
+**/Thumbs.db
+
+# Cache
+**/.cache/
+**/.parcel-cache/
+**/*.tsbuildinfo
+
+# Coverage
+**/coverage/
+**/.nyc_output/
+
+# Environment files (not readable by Claude)
+**/.env*
+!.env.example
+
+# Binary and document files
+*.zip
+*.tgz
+*.tar.gz
+*.gif
+*.ico
+*.webp
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+
+# Package manager lock files (large, rarely needed)
+**/pnpm-lock.yaml
+**/package-lock.json
+**/yarn.lock
+
+# Misc
+**/tmp/
+**/temp/
+
+# Keep CLAUDE.md readable
+!**/CLAUDE.md

@@ -37,7 +37,7 @@ const CONF_MAP: Record<string, { title: string; branchName: string; time: string
 };
 
 export default function PersonalCenter() {
-  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType, logout, deleteAccount } = useMembership();
+  const { currentUser, isLoggedIn, societyMembership, boundBranches, conferenceRegs, userType, logout, deleteAccount, updateProfile, withdrawalApplication, submitWithdrawalApplication, cancelWithdrawalApplication, getWithdrawalApplicationTemplateUrl } = useMembership();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"profile" | "branches" | "conferences" | "payments">("profile");
 
@@ -53,6 +53,11 @@ export default function PersonalCenter() {
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Phase 6: 退会申请流程
+  const [showWithdrawal, setShowWithdrawal] = useState(false);
+  const [wdFlowStep, setWdFlowStep] = useState(0); // 0=not started, 1=download, 2=upload, 3=submitted
+  const [wdAppFile, setWdAppFile] = useState<string | null>(null);
+  const [wdAppFileName, setWdAppFileName] = useState("");
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || "",
@@ -90,7 +95,15 @@ export default function PersonalCenter() {
   const handleSaveProfile = () => {
     if (!formData.name.trim()) { toast.error("姓名不能为空"); return; }
     if (!formData.unit.trim()) { toast.error("单位不能为空"); return; }
-    toast.success("个人信息已更新");
+    // Phase 1: 同步 isStudent 到用户身份
+    updateProfile({
+      name: formData.name.trim(),
+      gender: formData.gender as "男" | "女",
+      unit: formData.unit.trim(),
+      role: formData.role as "学生" | "教师" | "嘉宾",
+      title: formData.title || undefined,
+      isStudent: formData.role === "学生",
+    });
     setIsEditing(false);
   };
 
@@ -143,20 +156,39 @@ export default function PersonalCenter() {
       branchName: CONF_MAP[confId]?.branchName || "未知分会",
       fee: CONF_MAP[confId]?.fee || (reg as any).feeAmount || 0,
       status: (reg as any).status,
-      submittedAt: (reg as any).lastUpdated || (reg as any).submittedAt || "-",
+      submittedAt: (reg as any).voucherSubmitTime || (reg as any).lastUpdated || (reg as any).submittedAt || "-",
+      voucherUrl: (reg as any).paymentVoucher || "",
+      invoiceUrl: (reg as any).invoiceUrl || "",
+      invoiceDeadline: (reg as any).invoiceDeadline || (reg as any).invoiceExtendedDeadline,
+      invoiceSubmitTime: (reg as any).invoiceSubmitTime || "",
+      name: (reg as any).name || "",
+      role: (reg as any).role || "",
+      feeTypeLabel: (() => {
+        const storedType = localStorage.getItem(`paleo_user_type_${currentUser?.email || ""}`);
+        const isStudent = (reg as any).role === "学生" || currentUser?.role === "学生";
+        if (storedType === "member") {
+          return isStudent ? "学生会员" : "非学生会员";
+        }
+        return isStudent ? "学生（非会员）" : "非学生（非会员）";
+      })(),
     }));
 
   const getMemberStatusBadge = (status: string) => {
     switch (status) {
       case "active": return "bg-green-50 text-green-700 border border-green-200";
+      case "application_submitted":
       case "voucher_submitted":
       case "pending": return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+      case "application_rejected":
       case "voucher_rejected": return "bg-red-50 text-red-700 border border-red-200";
+      case "application_approved": return "bg-green-50 text-green-700 border border-green-200";
       case "invoice_pending": return "bg-blue-50 text-blue-700 border border-blue-200";
       case "invoice_overdue": return "bg-orange-50 text-orange-700 border border-orange-200";
       case "invoice_submitted": return "bg-yellow-50 text-yellow-700 border border-yellow-200";
       case "invoice_rejected":
       case "rejected": return "bg-red-50 text-red-700 border border-red-200";
+      case "withdrawal_submitted": return "bg-orange-50 text-orange-700 border border-orange-200";
+      case "withdrawn": return "bg-slate-50 text-slate-600 border border-slate-200";
       case "expired": return "bg-gray-50 text-gray-600 border border-gray-200";
       default: return "bg-slate-50 text-slate-600 border border-slate-200";
     }
@@ -166,6 +198,9 @@ export default function PersonalCenter() {
     switch (status) {
       case "active": return "✓ 会员资格有效";
       case "approved": return "✓ 已审核通过";
+      case "application_submitted": return "⏳ 入会申请审核中";
+      case "application_rejected": return "✕ 入会申请被驳回";
+      case "application_approved": return "✓ 入会申请已通过";
       case "voucher_submitted":
       case "pending": return "⏳ 凭证初审中";
       case "voucher_rejected": return "✕ 凭证被驳回";
@@ -174,6 +209,8 @@ export default function PersonalCenter() {
       case "invoice_submitted": return "⏳ 发票终审中";
       case "invoice_rejected":
       case "rejected": return "✕ 发票被驳回";
+      case "withdrawal_submitted": return "⏳ 退会申请审核中";
+      case "withdrawn": return "已退会";
       case "expired": return "已过期";
       default: return "未缴费";
     }
@@ -308,6 +345,21 @@ export default function PersonalCenter() {
                           ⏳ 发票终审中
                         </span>
                       )}
+                      {societyMembership?.status === "application_submitted" && (
+                        <span className="inline-block mt-1 bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          ⏳ 入会申请审核中
+                        </span>
+                      )}
+                      {societyMembership?.status === "application_approved" && (
+                        <span className="inline-block mt-1 bg-green-50 text-green-700 border border-green-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          ✓ 入会申请已通过
+                        </span>
+                      )}
+                      {societyMembership?.status === "withdrawal_submitted" && (
+                        <span className="inline-block mt-1 bg-orange-50 text-orange-700 border border-orange-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          ⏳ 退会申请审核中
+                        </span>
+                      )}
                     </div>
                   </div>
                   {!isEditing && !showPasswordChange && (
@@ -423,6 +475,157 @@ export default function PersonalCenter() {
               </div>
             </Card>
 
+            {/* Phase 6: 退会申请（仅有效会员可见） */}
+            {societyMembership?.status === "active" && (
+              <Card className="border border-orange-200 shadow-sm">
+                <div className="p-6">
+                  <h3 className="font-bold text-orange-700 mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined">exit_to_app</span> 退会申请
+                  </h3>
+
+                  {!showWithdrawal && (
+                    <div>
+                      <p className="text-sm text-slate-600 mb-4">申请退会后，您的学会会员资格将即时终止。已缴费的待参会订单保留，可继续以非会员身份参会，历史参会记录完整保留。</p>
+                      <Button onClick={() => setShowWithdrawal(true)} className="border border-orange-400 text-orange-600 hover:bg-orange-50 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">exit_to_app</span>
+                        申请退会
+                      </Button>
+                    </div>
+                  )}
+
+                  {showWithdrawal && wdFlowStep === 0 && (
+                    <div className="space-y-4">
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-xs text-orange-800">
+                        <p className="font-bold mb-2">⚠ 退会须知：</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>当前学会会员资格即时终止</li>
+                          <li>已缴费的待参会订单保留，正常参会</li>
+                          <li>可继续以非会员身份参加其他会议</li>
+                          <li>历史参会记录完整保留</li>
+                        </ul>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={() => setShowWithdrawal(false)} className="flex-1 border border-slate-300 text-slate-600 hover:bg-slate-50">取消</Button>
+                        <Button onClick={() => setWdFlowStep(1)} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white">继续退会申请</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {showWithdrawal && wdFlowStep === 1 && (
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-800">
+                        <p className="font-bold mb-1">Step 1/3：下载退会申请书模板</p>
+                        <p className="text-blue-700">请下载下方的退会申请书模板，填写后上传。</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const url = getWithdrawalApplicationTemplateUrl();
+                          if (url) { window.open(url, "_blank"); toast.success("模板下载已开始"); }
+                          else { toast.info("当前无可用模板，请直接上传您的退会申请书。"); }
+                        }}
+                        className="w-full border-2 border-dashed border-orange-400 text-orange-600 hover:bg-orange-50 px-4 py-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">download</span>
+                        下载退会申请书模板
+                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={() => setWdFlowStep(0)} className="flex-1 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs py-2">上一步</button>
+                        <button onClick={() => setWdFlowStep(2)} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-xs py-2">已下载，下一步上传</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {showWithdrawal && wdFlowStep === 2 && (
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-800">
+                        <p className="font-bold mb-1">Step 2/3：上传退会申请书</p>
+                        <p className="text-blue-700">请上传填写完整的退会申请书（.doc/.docx/.pdf）。</p>
+                      </div>
+                      <div onClick={() => {
+                        const mockName = `退会申请书_${currentUser?.name || "Member"}_2026.pdf`;
+                        setWdAppFile("withdrawal_form_mock_url");
+                        setWdAppFileName(mockName);
+                        toast.success("退会申请书上传成功！");
+                      }} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${wdAppFile ? "border-green-500 bg-green-50/20" : "border-slate-300 hover:bg-slate-50 hover:border-orange-400"}`}>
+                        {wdAppFile ? (
+                          <div>
+                            <span className="material-symbols-outlined text-4xl text-green-600 mb-2">check_circle</span>
+                            <p className="text-xs font-bold text-green-700">已上传：{wdAppFileName}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">点击可重新上传</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
+                            <p className="text-xs font-bold text-[#002B49]">点击模拟上传退会申请书</p>
+                            <p className="text-[10px] text-slate-400 mt-1">支持 .doc / .docx / .pdf 格式</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => { setWdFlowStep(1); setWdAppFile(null); setWdAppFileName(""); }} className="flex-1 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs py-2">上一步</button>
+                        <button
+                          onClick={() => {
+                            if (!wdAppFile) { toast.error("请先上传退会申请书"); return; }
+                            submitWithdrawalApplication(wdAppFile, wdAppFileName);
+                            setWdFlowStep(3);
+                          }}
+                          disabled={!wdAppFile}
+                          className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 text-white rounded-lg font-bold text-xs py-2"
+                        >
+                          确认提交退会申请
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {showWithdrawal && wdFlowStep === 3 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800 space-y-3">
+                      <p className="font-bold mb-1">⏳ 退会申请已提交</p>
+                      <p className="text-yellow-700">您的退会申请书已提交，管理员审核通过后会员资格将即时终止。</p>
+                      <button
+                        onClick={() => { cancelWithdrawalApplication(); setShowWithdrawal(false); setWdFlowStep(0); setWdAppFile(null); setWdAppFileName(""); }}
+                        className="w-full border border-green-600 text-green-600 hover:bg-green-50 rounded-lg font-bold text-xs py-2"
+                      >
+                        撤销退会申请
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Phase 6: 退会申请审核中 / 已退会状态 */}
+            {(societyMembership?.status === "withdrawal_submitted" || societyMembership?.status === "withdrawn") && (
+              <Card className="border border-orange-200 shadow-sm">
+                <div className="p-6">
+                  <h3 className="font-bold text-orange-700 mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined">exit_to_app</span> 退会状态
+                  </h3>
+                  {societyMembership?.status === "withdrawal_submitted" && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800 space-y-3">
+                      <p className="font-bold mb-1">⏳ 退会申请审核中</p>
+                      <p className="text-yellow-700">管理員正在审核您的退会申请书。</p>
+                      {withdrawalApplication?.applicationFileName && (
+                        <p className="text-yellow-600 text-[10px]">已上传：{withdrawalApplication.applicationFileName}</p>
+                      )}
+                      <button
+                        onClick={() => { cancelWithdrawalApplication(); }}
+                        className="w-full border border-green-600 text-green-600 hover:bg-green-50 rounded-lg font-bold text-xs py-2"
+                      >
+                        撤销退会申请
+                      </button>
+                    </div>
+                  )}
+                  {societyMembership?.status === "withdrawn" && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-600">
+                      <p className="font-bold mb-1">已退会</p>
+                      <p>您已退出中国古生物学会。可继续以非会员身份参加学术会议。</p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             <Card className="border border-red-200 shadow-sm">
               <div className="p-6">
                 <h3 className="font-bold text-red-600 mb-3 flex items-center gap-2">
@@ -510,19 +713,6 @@ export default function PersonalCenter() {
                 </div>
               </div>
             )}
-            {userType === "member" && societyMembership?.status !== "active" && societyMembership?.status !== "invoice_pending" && societyMembership?.status !== "invoice_submitted" && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 flex items-start gap-2">
-                <span className="material-symbols-outlined text-amber-500 mt-0.5">lock</span>
-                <div>
-                  <p className="font-bold">需要先成为学会会员</p>
-                  <p className="text-amber-700 mt-1">缴纳学会会员费并审核通过后，即可绑定专业分会。</p>
-                  <button onClick={() => setLocation("/services?tab=member")} className="mt-2 text-[#002B49] font-bold underline text-xs">
-                    前往申请入会 →
-                  </button>
-                </div>
-              </div>
-            )}
-
             {myBoundBranches.length === 0 ? (
               <Card className="border border-[#E5E1DA] shadow-sm p-10 text-center">
                 <span className="material-symbols-outlined text-4xl text-slate-300 mb-3">account_tree</span>
@@ -710,22 +900,53 @@ export default function PersonalCenter() {
                 <div className="grid gap-3">
                   {societyPayHistory.map((record: any, idx: number) => (
                     <Card key={idx} className="border border-[#E5E1DA] shadow-sm">
-                      <div className="p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center">
-                            <span className="material-symbols-outlined text-slate-500 text-[18px]">receipt</span>
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center">
+                              <span className="material-symbols-outlined text-slate-500 text-[18px]">receipt</span>
+                            </div>
+                            <div>
+                              <p className="font-bold text-[#002B49] text-sm">中国古生物学会会员费</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                缴费金额：¥{record.amount || societyMembership?.amount || "-"}
+                                {record.submitTime && <span className="ml-2">· {record.submitTime}</span>}
+                              </p>
+                              {/* Phase 5: 费用类型标签（锁定缴费时身份） */}
+                              <span className="inline-block mt-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                {currentUser?.role === "学生" ? "学生会员" : "非学生会员"} · ¥{record.amount || societyMembership?.amount || "-"}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-[#002B49] text-sm">中国古生物学会会员费</p>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              缴费金额：¥{record.amount || societyMembership?.amount || "-"}
-                              {record.date && <span className="ml-2">· {record.date}</span>}
-                            </p>
-                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${getMemberStatusBadgeByRecord(record)}`}>
+                            {getMemberStatusLabelByRecord(record)}
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${getMemberStatusBadgeByRecord(record)}`}>
-                          {getMemberStatusLabelByRecord(record)}
-                        </span>
+                        {/* Phase 5: 凭证/发票文件链接 */}
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
+                          {record.voucherUrl ? (
+                            <a href={record.voucherUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#002B49] hover:text-[#C41E3A] transition-colors">
+                              <span className="material-symbols-outlined text-[14px]">description</span>
+                              查看缴费凭证
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                              <span className="material-symbols-outlined text-[14px]">description</span>
+                              暂无缴费凭证
+                            </span>
+                          )}
+                          {record.invoiceUrl ? (
+                            <a href={record.invoiceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#002B49] hover:text-[#C41E3A] transition-colors">
+                              <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                              查看电子发票
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                              <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                              暂无电子发票
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {societyMembership?.status === "active" && idx === 0 && (
                         <div className="px-4 pb-3 text-xs text-green-600 flex items-center gap-1">
@@ -756,23 +977,59 @@ export default function PersonalCenter() {
                 <div className="grid gap-3">
                   {confPayHistory.map((record, idx) => (
                     <Card key={idx} className="border border-[#E5E1DA] shadow-sm">
-                      <div className="p-4 flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center mt-0.5">
-                            <span className="material-symbols-outlined text-slate-500 text-[18px]">receipt_long</span>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center mt-0.5">
+                              <span className="material-symbols-outlined text-slate-500 text-[18px]">receipt_long</span>
+                            </div>
+                            <div>
+                              <p className="font-bold text-[#002B49] text-sm leading-snug">{record.title}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">{record.branchName}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                注册费：¥{record.fee}
+                                {record.submittedAt && <span className="ml-2">· 提交于 {record.submittedAt}</span>}
+                              </p>
+                              {/* Phase 5: 费用类型标签（锁定缴费时身份） */}
+                              <span className="inline-block mt-1 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                {record.feeTypeLabel} · ¥{record.fee}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-[#002B49] text-sm leading-snug">{record.title}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{record.branchName}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              注册费：¥{record.fee}
-                              {record.submittedAt && <span className="ml-2">· 提交于 {record.submittedAt}</span>}
-                            </p>
-                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${getConfStatusBadge(record.status)}`}>
+                            {getConfStatusLabel(record.status)}
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${getConfStatusBadge(record.status)}`}>
-                          {getConfStatusLabel(record.status)}
-                        </span>
+                        {/* Phase 5: 凭证/发票文件链接 */}
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
+                          {record.voucherUrl ? (
+                            <a href={record.voucherUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#002B49] hover:text-[#C41E3A] transition-colors">
+                              <span className="material-symbols-outlined text-[14px]">description</span>
+                              查看缴费凭证
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                              <span className="material-symbols-outlined text-[14px]">description</span>
+                              暂无缴费凭证
+                            </span>
+                          )}
+                          {record.invoiceUrl ? (
+                            <a href={record.invoiceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#002B49] hover:text-[#C41E3A] transition-colors">
+                              <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                              查看电子发票
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                              <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                              暂无电子发票
+                            </span>
+                          )}
+                          {record.invoiceDeadline && record.status === "invoice_pending" && (
+                            <span className="text-[10px] text-blue-600 font-bold ml-auto">
+                              发票截止：{record.invoiceDeadline}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </Card>
                   ))}

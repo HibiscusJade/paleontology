@@ -4,11 +4,20 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { LayoutDashboard, Users, ClipboardCheck, Calendar, CreditCard, Clock, AlertCircle, FileText } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardCheck, Calendar, CreditCard, Clock, AlertCircle, FileText, GraduationCap, TrendingUp } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { MEMBERSHIP_STATUS_LABEL } from "@shared/constants";
+import { MEMBERSHIP_STATUS_LABEL, ALL_SOCIETY_UNITS, CONFERENCE_FEE_TYPE_LABEL, CONFERENCE_FEE_TYPE } from "@shared/constants";
 
 const CHART_COLORS = ["#002B49", "#C41E3A", "#D9C5A0", "#715a3e", "#406182", "#8B0000"];
+
+const SOCIETY_CHART_COLORS = ["#002B49", "#C41E3A", "#D9C5A0", "#715a3e", "#406182", "#8B0000", "#2d6a4f", "#9b2226", "#ca6702", "#005f73", "#0b525b", "#ee9b00"];
+
+const FEE_TYPE_COLORS: Record<string, string> = {
+  student_member: "#002B49",
+  non_student_member: "#C41E3A",
+  student_non_member: "#D9C5A0",
+  non_student_non_member: "#715a3e",
+};
 
 function StatCard({
   title,
@@ -64,8 +73,44 @@ function ReviewStatusBadge({ status }: { status: string }) {
 }
 
 function SuperAdminView({ stats }: { stats: DashboardStats }) {
+  const { getGlobalStats, getAllConferences } = useAdmin();
+  const globalStats = getGlobalStats();
+  const allConfs = getAllConferences();
+
+  // 12-society conference fee bar chart data
+  const societyFeeData = Object.entries(ALL_SOCIETY_UNITS)
+    .map(([id, name]) => ({
+      name: name.length > 8 ? name.slice(0, 8) + "…" : name,
+      fullName: name,
+      amount: globalStats.perSocietyConferenceFee[id] || 0,
+    }))
+    .filter(d => d.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+
+  // 4-class population pie chart data
+  const populationPieData = [
+    { name: "学生会员", value: globalStats.studentMembers, fill: FEE_TYPE_COLORS.student_member },
+    { name: "非学生会员", value: globalStats.nonStudentMembers, fill: FEE_TYPE_COLORS.non_student_member },
+    { name: "学生(非会员)", value: globalStats.studentNonMembers, fill: FEE_TYPE_COLORS.student_non_member },
+    { name: "非学生(非会员)", value: globalStats.nonStudentNonMembers, fill: FEE_TYPE_COLORS.non_student_non_member },
+  ].filter(d => d.value > 0);
+
+  // Society attendee heat table: per society conference count + registrations
+  const societyAttendeeData = Object.entries(ALL_SOCIETY_UNITS)
+    .map(([id, name]) => {
+      const socConfs = allConfs.filter(c => c.branchId === id);
+      return {
+        id,
+        name,
+        confCount: socConfs.length,
+        totalRegs: socConfs.reduce((sum, c) => sum + c.registrations, 0),
+      };
+    })
+    .filter(d => d.confCount > 0 || d.totalRegs > 0);
+
   return (
     <div className="space-y-6">
+      {/* Row 1: Basic stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="用户总数" value={stats.totalUsers} icon={Users} delay={0} />
         <StatCard title="非会员" value={stats.nonMemberCount} icon={Users} delay={0.1} />
@@ -73,38 +118,213 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
         <StatCard title="活跃会员" value={stats.activeMembers} icon={LayoutDashboard} delay={0.2} />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.4 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">分会用户分布</CardTitle>
-            <CardDescription>各分会绑定用户数量统计</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {stats.branchMemberCounts && stats.branchMemberCounts.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(320, stats.branchMemberCounts.length * 52)}>
-                <BarChart data={stats.branchMemberCounts} layout="vertical" margin={{ top: 5, right: 50, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="用户数" fill="#002B49" radius={[0, 4, 4, 0]} label={{ position: "right", fontSize: 14, fontWeight: 600 }} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-64 text-muted-foreground">暂无数据</div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* Row 2: 4-class population cards */}
+      <div>
+        <h3 className="text-sm font-semibold text-strata-blue-deep mb-3 flex items-center gap-2">
+          <GraduationCap className="h-4 w-4" /> 四类人群分布概览
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.4 }}>
+            <Card className="border-l-4" style={{ borderLeftColor: FEE_TYPE_COLORS.student_member }}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">学生会员</CardTitle>
+                <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-strata-blue-deep">{globalStats.studentMembers}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  会员费 ¥{globalStats.studentMembershipFeeAmount.toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.4 }}>
+            <Card className="border-l-4" style={{ borderLeftColor: FEE_TYPE_COLORS.non_student_member }}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">非学生会员</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-strata-blue-deep">{globalStats.nonStudentMembers}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  会员费 ¥{globalStats.nonStudentMembershipFeeAmount.toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.4 }}>
+            <Card className="border-l-4" style={{ borderLeftColor: FEE_TYPE_COLORS.student_non_member }}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">学生（非会员）</CardTitle>
+                <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-strata-blue-deep">{globalStats.studentNonMembers}</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.4 }}>
+            <Card className="border-l-4" style={{ borderLeftColor: FEE_TYPE_COLORS.non_student_non_member }}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">非学生（非会员）</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-strata-blue-deep">{globalStats.nonStudentNonMembers}</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </div>
 
+      {/* Row 3: Branch distribution + Population pie */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">分会用户分布</CardTitle>
+              <CardDescription>各分会绑定用户数量统计</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stats.branchMemberCounts && stats.branchMemberCounts.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(320, stats.branchMemberCounts.length * 52)}>
+                  <BarChart data={stats.branchMemberCounts} layout="vertical" margin={{ top: 5, right: 50, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
+                    <XAxis type="number" />
+                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="用户数" fill="#002B49" radius={[0, 4, 4, 0]} label={{ position: "right", fontSize: 14, fontWeight: 600 }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">暂无数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">四类人群分布</CardTitle>
+              <CardDescription>学生/非学生 × 会员/非会员</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {populationPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={320}>
+                  <PieChart>
+                    <Pie
+                      data={populationPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={100}
+                      dataKey="value"
+                    >
+                      {populationPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">暂无数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Row 4: 12-Society conference fee mini chart + Society attendee heat table */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" /> 各学会会议费收入概览
+              </CardTitle>
+              <CardDescription>12 学会会议费累计金额对比</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {societyFeeData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(320, societyFeeData.length * 46)}>
+                  <BarChart data={societyFeeData} layout="vertical" margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
+                    <XAxis type="number" tickFormatter={(v: number) => `¥${(v / 1000).toFixed(0)}k`} />
+                    <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                    <Bar dataKey="amount" name="会议费" fill="#002B49" radius={[0, 4, 4, 0]}>
+                      {societyFeeData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={SOCIETY_CHART_COLORS[index % SOCIETY_CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">暂无会议费数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">各学会参会人数概览</CardTitle>
+              <CardDescription>各学会发布会议数与报名人数</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {societyAttendeeData.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>学会</TableHead>
+                      <TableHead className="text-right">会议数</TableHead>
+                      <TableHead className="text-right">报名人数</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {societyAttendeeData.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-medium text-sm">{row.name}</TableCell>
+                        <TableCell className="text-right">{row.confCount}</TableCell>
+                        <TableCell className="text-right font-semibold">{row.totalRegs}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">暂无数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Row 5: Recent reviews */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.4 }}
+        transition={{ delay: 0.65, duration: 0.4 }}
       >
         <Card>
           <CardHeader>

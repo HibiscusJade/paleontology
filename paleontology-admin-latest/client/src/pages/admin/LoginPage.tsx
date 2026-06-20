@@ -103,6 +103,33 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          {/* 演示账号 */}
+          <div className="mt-6 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground text-center mb-3 font-medium tracking-wide">
+              📋 演示账号
+            </p>
+            <div className="space-y-2 text-xs">
+              <div className="rounded-md bg-accent-gold/5 border border-accent-gold/15 px-3 py-2">
+                <p className="font-semibold text-strata-blue-deep">学会总管理员（全菜单）</p>
+                <p className="text-muted-foreground mt-0.5">
+                  admin@paleontology.org.cn / admin123
+                </p>
+              </div>
+              <div className="rounded-md bg-accent-gold/5 border border-accent-gold/15 px-3 py-2">
+                <p className="font-semibold text-strata-blue-deep">分会管理员（3项菜单）</p>
+                <p className="text-muted-foreground mt-0.5">
+                  branch@gjzdw.org.cn / admin123
+                </p>
+              </div>
+              <div className="rounded-md bg-accent-gold/5 border border-accent-gold/15 px-3 py-2">
+                <p className="font-semibold text-strata-blue-deep">财务审核员（3项菜单）</p>
+                <p className="text-muted-foreground mt-0.5">
+                  finance@paleontology.org.cn / admin123
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
