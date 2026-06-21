@@ -79,14 +79,11 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
   const allConfs = getAllConferences();
 
   // 12-society conference fee bar chart data
-  const societyFeeData = Object.entries(ALL_SOCIETY_UNITS)
-    .map(([id, name]) => ({
-      name: name.length > 8 ? name.slice(0, 8) + "…" : name,
-      fullName: name,
-      amount: globalStats.perSocietyConferenceFee[id] || 0,
-    }))
-    .filter(d => d.amount > 0)
-    .sort((a, b) => b.amount - a.amount);
+  const societyFeeData = Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => ({
+    name: name.length > 8 ? name.slice(0, 8) + "…" : name,
+    fullName: name,
+    amount: globalStats.perSocietyConferenceFee[id] || 0,
+  }));
 
   // 4-class population pie chart data
   const populationPieData = [
@@ -279,26 +276,22 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" /> 各学会会议费收入概览
               </CardTitle>
-              <CardDescription>12 学会会议费累计金额对比</CardDescription>
+              <CardDescription>固定展示 12 学会（含金额为 0 的学会）</CardDescription>
             </CardHeader>
             <CardContent>
-              {societyFeeData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={Math.max(320, societyFeeData.length * 46)}>
-                  <BarChart data={societyFeeData} layout="vertical" margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
-                    <XAxis type="number" tickFormatter={(v: number) => `¥${(v / 1000).toFixed(0)}k`} />
-                    <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                    <Bar dataKey="amount" name="会议费" fill="#002B49" radius={[0, 4, 4, 0]}>
-                      {societyFeeData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={SOCIETY_CHART_COLORS[index % SOCIETY_CHART_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-64 text-muted-foreground">暂无会议费数据</div>
-              )}
+              <ResponsiveContainer width="100%" height={Math.max(360, societyFeeData.length * 46)}>
+                <BarChart data={societyFeeData} layout="vertical" margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v: number) => `¥${(v / 1000).toFixed(0)}k`} />
+                  <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""} />
+                  <Bar dataKey="amount" name="会议费" fill="#002B49" radius={[0, 4, 4, 0]}>
+                    {societyFeeData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={SOCIETY_CHART_COLORS[index % SOCIETY_CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </motion.div>

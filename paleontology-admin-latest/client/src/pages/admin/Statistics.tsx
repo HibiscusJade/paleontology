@@ -172,12 +172,6 @@ export function SocietyFeeMatrixTable({ breakdowns }: { breakdowns: Record<strin
     return { id, name, bd, rowTotal };
   });
 
-  const hasData = rows.some(r => r.rowTotal > 0);
-
-  if (!hasData) {
-    return <div className="flex items-center justify-center h-32 text-muted-foreground">暂无实收会议费数据</div>;
-  }
-
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -255,14 +249,11 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
 
   // Per-society conference fee bar chart data
   const societyFeeData = useMemo(() => {
-    return Object.entries(ALL_SOCIETY_UNITS)
-      .map(([id, name]) => ({
-        name: name.length > 8 ? name.slice(0, 8) + "…" : name,
-        fullName: name,
-        amount: stats.perSocietyConferenceFee[id] || 0,
-      }))
-      .filter(d => d.amount > 0)
-      .sort((a, b) => b.amount - a.amount);
+    return Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => ({
+      name: name.length > 8 ? name.slice(0, 8) + "…" : name,
+      fullName: name,
+      amount: stats.perSocietyConferenceFee[id] || 0,
+    }));
   }, [stats.perSocietyConferenceFee]);
 
   // Population distribution pie data
@@ -383,22 +374,18 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">各学会会议费累计金额</CardTitle>
-            <CardDescription>12 个学会各自会议费收入对比</CardDescription>
+            <CardDescription>固定展示 12 个学会（含金额为 0 的学会）</CardDescription>
           </CardHeader>
           <CardContent>
-            {societyFeeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(320, societyFeeData.length * 52)}>
-                <BarChart data={societyFeeData} layout="vertical" margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
-                  <XAxis type="number" tickFormatter={(v: number) => `¥${(v / 1000).toFixed(0)}k`} />
-                  <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                  <Bar dataKey="amount" name="会议费" fill="#002B49" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-48 text-muted-foreground">暂无会议费数据</div>
-            )}
+            <ResponsiveContainer width="100%" height={Math.max(360, societyFeeData.length * 52)}>
+              <BarChart data={societyFeeData} layout="vertical" margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v: number) => `¥${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""} />
+                <Bar dataKey="amount" name="会议费" fill="#002B49" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
@@ -497,7 +484,7 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
 // LEVEL 2: SOCIETY STATISTICS
 // ============================================================================
 
-function SocietyStatistics() {
+function SocietyStatistics({ onRequestGlobalView }: { onRequestGlobalView: () => void }) {
   const { getSocietyStats, getAllConferences, generateExportZip } = useAdmin();
   const [selectedSociety, setSelectedSociety] = useState<string>("");
   const [isExporting, setIsExporting] = useState(false);
@@ -506,9 +493,18 @@ function SocietyStatistics() {
   const societyOptions = useMemo(() => {
     return Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => ({
       value: id,
-      label: name,
+      label: id === TOTAL_SOCIETY_ID ? `${name}（全平台汇总）` : name,
     }));
   }, []);
+
+  const handleSocietyChange = (value: string) => {
+    if (value === TOTAL_SOCIETY_ID) {
+      toast.info("已切换至全平台汇总（总览）");
+      onRequestGlobalView();
+      return;
+    }
+    setSelectedSociety(value);
+  };
 
   const stats: SocietyStats | null = useMemo(() => {
     if (!selectedSociety) return null;
@@ -540,8 +536,8 @@ function SocietyStatistics() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <label className="text-sm font-medium whitespace-nowrap">选择学会/分会：</label>
-        <Select value={selectedSociety} onValueChange={setSelectedSociety}>
-          <SelectTrigger className="w-[320px]">
+        <Select value={selectedSociety} onValueChange={handleSocietyChange}>
+          <SelectTrigger className="w-[360px]">
             <SelectValue placeholder="请选择学会或分会" />
           </SelectTrigger>
           <SelectContent>
@@ -560,8 +556,9 @@ function SocietyStatistics() {
 
       {!selectedSociety ? (
         <Card>
-          <CardContent className="flex items-center justify-center h-48 text-muted-foreground">
-            请从上方下拉菜单中选择一个学会或分会以查看其统计数据
+          <CardContent className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2 text-center px-4">
+            <span>请从上方下拉菜单中选择一个分会以查看该学会累计统计</span>
+            <span className="text-xs">选择「中国古生物学会（总学会）（全平台汇总）」将跳转至「总览」查看 12 学会汇总数据</span>
           </CardContent>
         </Card>
       ) : stats ? (
@@ -1391,7 +1388,7 @@ export default function Statistics() {
           </TabsContent>
 
           <TabsContent value="society" className="mt-4">
-            <SocietyStatistics />
+            <SocietyStatistics onRequestGlobalView={() => setLevel("global")} />
           </TabsContent>
 
           <TabsContent value="conference" className="mt-4">
