@@ -17,6 +17,11 @@ import {
   ACCOMMODATION_TYPE_LABEL,
   ACCOMMODATION_TYPE,
   ALL_SOCIETY_IDS,
+  TOTAL_SOCIETY_ID,
+  createDefaultFieldTripRoutes,
+  createEmptyFieldTripSelections,
+  type FieldTripSelections,
+  resolveSocietyName,
   deriveFeeType,
   getFeeFromConfig,
   type UserType,
@@ -249,6 +254,15 @@ export interface GlobalStats {
 
 export interface SocietyStats {
   societyName: string;
+  /** 绑定该学会的注册用户总数（总学会含全站用户） */
+  registeredTotal: number;
+  registeredMembers: number;
+  registeredNonMembers: number;
+  registeredStudentMembers: number;
+  registeredNonStudentMembers: number;
+  registeredStudentNonMembers: number;
+  registeredNonStudentNonMembers: number;
+  /** 累计确认参会人数（按会议费类型） */
   totalAttendees: number;
   totalMembers: number;
   totalNonMembers: number;
@@ -336,6 +350,10 @@ export interface ConferenceAttendee {
   fieldTripPre: boolean;
   fieldTripDuring: boolean;
   fieldTripPost: boolean;
+  /** 野外路线 ID 选择（会前/会中/会后） */
+  fieldTripSelections?: FieldTripSelections;
+  /** 已选野外路线文字摘要（供列表展示） */
+  fieldTripSummary?: string;
   voucherUrl?: string;
   invoiceUrl?: string;
 }
@@ -576,7 +594,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: "/admin/conferences", label: "会议管理", icon: "Calendar" },
   { path: "/admin/statistics", label: "数据统计", icon: "BarChart3" },
   { path: "/admin/finance", label: "财务记录", icon: "Receipt" },
-  { path: "/admin/branches", label: "分会管理", icon: "Building2" },
+  { path: "/admin/branches", label: "学会/分会管理", icon: "Building2" },
   {
     path: "/admin/cms",
     label: "内容管理",
@@ -637,6 +655,59 @@ const ALL_MENU_ITEMS: MenuItem[] = [
 
 const DEFAULT_CONFERENCES: ConferenceRecord[] = [
   {
+    id: "conf-zgswxh-1",
+    name: "中国古生物学会第32届学术年会",
+    branchId: TOTAL_SOCIETY_ID,
+    branchName: ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID],
+    startDate: "2026-10-15",
+    endDate: "2026-10-19",
+    location: "江苏 · 南京",
+    memberFee: 1500,
+    nonMemberFee: 1800,
+    feeConfig: {
+      studentMember: 1000,
+      nonStudentMember: 1500,
+      studentNonMember: 1200,
+      nonStudentNonMember: 1800,
+    },
+    paymentDeadline: "2026-09-15",
+    abstractDeadline: "2026-09-15",
+    accommodationDeadline: "2026-10-08",
+    fieldTripDeadline: "2026-10-08",
+    fieldTripRoutes: createDefaultFieldTripRoutes("zgs1", "南京"),
+    status: "published",
+    sessions: [
+      { id: "zs1", name: "大会报告" },
+      { id: "zs2", name: "分会场交流" },
+    ],
+    registrations: 0,
+  },
+  {
+    id: "conf-zgswxh-2",
+    name: "中国古生物学会国际古生物学前沿论坛",
+    branchId: TOTAL_SOCIETY_ID,
+    branchName: ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID],
+    startDate: "2027-04-10",
+    endDate: "2027-04-13",
+    location: "北京 · 中国科学院",
+    memberFee: 2000,
+    nonMemberFee: 2400,
+    feeConfig: {
+      studentMember: 1500,
+      nonStudentMember: 2000,
+      studentNonMember: 1800,
+      nonStudentNonMember: 2400,
+    },
+    paymentDeadline: "2027-03-15",
+    abstractDeadline: "2027-03-01",
+    accommodationDeadline: "2027-04-03",
+    fieldTripDeadline: "2027-04-03",
+    fieldTripRoutes: createDefaultFieldTripRoutes("zgs2", "北京"),
+    status: "published",
+    sessions: [{ id: "zs3", name: "国际前沿报告" }],
+    registrations: 0,
+  },
+  {
     id: "conf-1", name: "第三届全国微体学学术研讨会", branchId: "wtxfh",
     branchName: "微体学分会", startDate: "2026-09-15", endDate: "2026-09-18",
     location: "南京", memberFee: 1200, nonMemberFee: 1320,
@@ -650,23 +721,7 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     paymentDeadline: "2026-08-15", abstractDeadline: "2026-07-30",
     accommodationDeadline: "2026-09-08",
     fieldTripDeadline: "2026-09-08",
-    fieldTripRoutes: [
-      { id: "s1-pre-1", phase: "pre", name: "南京汤山地质考察", order: 1 },
-      { id: "s1-pre-2", phase: "pre", name: "宁镇山脉寒武纪剖面", order: 2 },
-      { id: "s1-pre-3", phase: "pre", name: "茅山三叠纪化石产地", order: 3 },
-      { id: "s1-pre-4", phase: "pre", name: "六合雨花石产地考察", order: 4 },
-      { id: "s1-pre-5", phase: "pre", name: "溧阳上黄中华曙猿遗址", order: 5 },
-      { id: "s1-dur-1", phase: "during", name: "会议期间南京地质博物馆", order: 6 },
-      { id: "s1-dur-2", phase: "during", name: "南京大学古生物标本馆", order: 7 },
-      { id: "s1-dur-3", phase: "during", name: "中科院南京地质古生物研究所", order: 8 },
-      { id: "s1-dur-4", phase: "during", name: "江宁汤山猿人洞", order: 9 },
-      { id: "s1-dur-5", phase: "during", name: "栖霞山二叠纪剖面", order: 10 },
-      { id: "s1-post-1", phase: "post", name: "金坛上黄动物群产地", order: 11 },
-      { id: "s1-post-2", phase: "post", name: "句容下蜀山剖面", order: 12 },
-      { id: "s1-post-3", phase: "post", name: "宜兴张渚泥盆纪剖面", order: 13 },
-      { id: "s1-post-4", phase: "post", name: "苏州阳山碑材地质遗迹", order: 14 },
-      { id: "s1-post-5", phase: "post", name: "无锡惠山古生物点", order: 15 },
-    ],
+    fieldTripRoutes: createDefaultFieldTripRoutes("s1", "南京"),
     status: "published",
     sessions: [{ id: "s1", name: "微体化石与生物地层学" }, { id: "s2", name: "微体古生态与古环境" }],
     registrations: 0,
@@ -685,7 +740,7 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     paymentDeadline: "2026-09-10", abstractDeadline: "2026-08-25",
     accommodationDeadline: "2026-10-03",
     fieldTripDeadline: "2026-10-03",
-    fieldTripRoutes: [],
+    fieldTripRoutes: createDefaultFieldTripRoutes("s2", "北京"),
     status: "published",
     sessions: [{ id: "s1", name: "古植物系统分类" }],
     registrations: 0,
@@ -704,10 +759,7 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     paymentDeadline: "2026-10-20", abstractDeadline: "2026-10-05",
     accommodationDeadline: "2026-11-13",
     fieldTripDeadline: "2026-11-13",
-    fieldTripRoutes: [
-      { id: "s3-pre-1", phase: "pre", name: "路线一：蓝田生物群化石产地考察", order: 1 },
-      { id: "s3-post-1", phase: "post", name: "路线一：秦岭造山带地质剖面", order: 1 },
-    ],
+    fieldTripRoutes: createDefaultFieldTripRoutes("s3", "西安"),
     status: "published",
     sessions: [{ id: "s1", name: "恐龙与中生代生态" }, { id: "s2", name: "早期人类演化" }],
     registrations: 0,
@@ -879,6 +931,23 @@ function aggregateFeeBreakdownFromAttendees(attendees: ConferenceAttendee[], rev
   return breakdown;
 }
 
+function buildFieldTripSummary(
+  selections: FieldTripSelections | undefined,
+  routes?: { id: string; name: string; phase: string }[]
+): string {
+  if (!selections || !routes?.length) return "—";
+  const routeMap = new Map(routes.map(r => [r.id, r]));
+  const parts: string[] = [];
+  for (const phase of ["pre", "during", "post"] as const) {
+    const ids = selections[phase] || [];
+    if (!ids.length) continue;
+    const phaseLabel = phase === "pre" ? "会前" : phase === "during" ? "会中" : "会后";
+    const names = ids.map(id => routeMap.get(id)?.name || id).join("、");
+    parts.push(`${phaseLabel}：${names}`);
+  }
+  return parts.length ? parts.join("；") : "—";
+}
+
 function collectConferenceAttendees(confId: string, conf?: ConferenceRecord): ConferenceAttendee[] {
   const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string }[] =
     JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
@@ -926,6 +995,8 @@ function collectConferenceAttendees(confId: string, conf?: ConferenceRecord): Co
       fieldTripPre: !!(ftSelections?.pre?.length),
       fieldTripDuring: !!(ftSelections?.during?.length),
       fieldTripPost: !!(ftSelections?.post?.length),
+      fieldTripSelections: ftSelections,
+      fieldTripSummary: buildFieldTripSummary(ftSelections, conf?.fieldTripRoutes),
       voucherUrl: reg.paymentVoucher,
       invoiceUrl: reg.invoiceUrl,
     });
@@ -1654,6 +1725,165 @@ const SEED_USER_TYPES: Record<string, string> = {
   "guodong@paleontology.org.cn": "member",
 };
 
+/** 演示用摘要文件（纯文本 data URL） */
+const DEMO_ABSTRACT_DATA_URL =
+  "data:text/plain;charset=utf-8," + encodeURIComponent("【演示摘要】本报告为系统演示数据，展示摘要上传与统计功能。");
+
+type SeedConferenceReg = Record<string, Record<string, unknown>>;
+
+function makeDemoConfReg(
+  opts: {
+    name: string;
+    gender: "男" | "女";
+    unit: string;
+    role: string;
+    feeType: ConferenceFeeType;
+    lockedAmount: number;
+    presentationType: "口头报告" | "展板报告" | "仅参会";
+    reportTitle?: string;
+    withAbstract?: boolean;
+    accommodationType: string;
+    fieldTripSelections?: FieldTripSelections;
+  }
+): Record<string, unknown> {
+  return {
+    status: "confirmed",
+    name: opts.name,
+    gender: opts.gender,
+    unit: opts.unit,
+    role: opts.role,
+    presentationType: opts.presentationType,
+    reportTitle: opts.reportTitle,
+    abstractFileName: opts.withAbstract ? `${opts.name}_摘要.docx` : undefined,
+    abstractFileUrl: opts.withAbstract ? DEMO_ABSTRACT_DATA_URL : undefined,
+    abstractSubmitTime: opts.withAbstract ? "2026-08-20 10:00" : undefined,
+    accommodationType: opts.accommodationType,
+    accommodation: ACCOMMODATION_TYPE_LABEL[opts.accommodationType] || opts.accommodationType,
+    session: "主会场",
+    feeType: opts.feeType,
+    lockedAmount: opts.lockedAmount,
+    fieldTripSelections: opts.fieldTripSelections || createEmptyFieldTripSelections(),
+    lastUpdated: "2026-08-22 15:30",
+    paymentVoucher: "",
+    invoiceUrl: "",
+  };
+}
+
+/** 各用户会议报名 + 参会提交信息（报告/住宿/野外）演示数据 */
+const SEED_CONFERENCE_SUBMISSIONS: SeedConferenceReg = {
+  "member@paleontology.org.cn": {
+    "conf-zgswxh-1": makeDemoConfReg({
+      name: "张华",
+      gender: "男",
+      unit: "中国科学院古脊椎动物与古人类研究所",
+      role: "教师",
+      feeType: CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER,
+      lockedAmount: 1500,
+      presentationType: "口头报告",
+      reportTitle: "早白垩世热河生物群鸟类化石新发现",
+      withAbstract: true,
+      accommodationType: ACCOMMODATION_TYPE.MALE_SINGLE,
+      fieldTripSelections: { pre: ["zgs1-pre-1"], during: ["zgs1-during-1"], post: [] },
+    }),
+  },
+  "student@paleontology.org.cn": {
+    "conf-zgswxh-1": makeDemoConfReg({
+      name: "李萌",
+      gender: "女",
+      unit: "南京大学地科院",
+      role: "学生",
+      feeType: CONFERENCE_FEE_TYPE.STUDENT_MEMBER,
+      lockedAmount: 1000,
+      presentationType: "展板报告",
+      reportTitle: "华南二叠纪腕足动物群落演化",
+      withAbstract: true,
+      accommodationType: ACCOMMODATION_TYPE.FEMALE_DOUBLE,
+      fieldTripSelections: { pre: [], during: [], post: ["zgs1-post-1"] },
+    }),
+  },
+  "demo@paleontology.org.cn": {
+    "conf-zgswxh-1": makeDemoConfReg({
+      name: "演示用户",
+      gender: "男",
+      unit: "中国古生物学会",
+      role: "教师",
+      feeType: CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER,
+      lockedAmount: 1800,
+      presentationType: "仅参会",
+      accommodationType: ACCOMMODATION_TYPE.SELF_ARRANGED,
+    }),
+  },
+  "huangjing@paleontology.org.cn": {
+    "conf-1": makeDemoConfReg({
+      name: "黄静",
+      gender: "女",
+      unit: "中国科学院南京地质古生物研究所",
+      role: "教师",
+      feeType: CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER,
+      lockedAmount: 1200,
+      presentationType: "口头报告",
+      reportTitle: "西藏南部渐新世微体化石组合",
+      withAbstract: true,
+      accommodationType: ACCOMMODATION_TYPE.FEMALE_SINGLE,
+      fieldTripSelections: { pre: ["s1-pre-1"], during: [], post: [] },
+    }),
+  },
+  "chenming@paleontology.org.cn": {
+    "conf-3": makeDemoConfReg({
+      name: "陈明",
+      gender: "男",
+      unit: "北京大学地球与空间科学学院",
+      role: "教师",
+      feeType: CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER,
+      lockedAmount: 1500,
+      presentationType: "口头报告",
+      reportTitle: "辽西地区侏罗纪翼龙类新材料",
+      withAbstract: true,
+      accommodationType: ACCOMMODATION_TYPE.MALE_DOUBLE,
+      fieldTripSelections: { pre: ["s3-pre-1"], during: ["s3-during-1"], post: ["s3-post-1"] },
+    }),
+  },
+  "wulei@paleontology.org.cn": {
+    "conf-3": makeDemoConfReg({
+      name: "吴磊",
+      gender: "男",
+      unit: "吉林大学地球科学学院",
+      role: "学生",
+      feeType: CONFERENCE_FEE_TYPE.STUDENT_MEMBER,
+      lockedAmount: 1000,
+      presentationType: "展板报告",
+      reportTitle: "陕西蓝田地区上新世哺乳动物化石",
+      withAbstract: true,
+      accommodationType: ACCOMMODATION_TYPE.MALE_DOUBLE,
+      fieldTripSelections: { pre: [], during: ["s3-during-2"], post: [] },
+    }),
+  },
+};
+
+const DEMO_SUBMISSIONS_SEED_VERSION = "1";
+
+function seedDemoConferenceSubmissions() {
+  if (localStorage.getItem("paleo_admin_demo_submissions_v") === DEMO_SUBMISSIONS_SEED_VERSION) return;
+
+  for (const [email, confRegs] of Object.entries(SEED_CONFERENCE_SUBMISSIONS)) {
+    const adminKey = `paleo_admin_confs_${email}`;
+    const existing = JSON.parse(localStorage.getItem(adminKey) || "{}");
+    const merged = { ...existing, ...confRegs };
+    localStorage.setItem(adminKey, JSON.stringify(merged));
+    syncAdminToUserStorage(adminKey);
+  }
+
+  const stored = localStorage.getItem("paleo_admin_conferences_db");
+  const confs: ConferenceRecord[] = stored ? JSON.parse(stored) : [...DEFAULT_CONFERENCES];
+  for (const conf of confs) {
+    conf.registrations = countConfirmedAttendees(conf.id, conf);
+  }
+  localStorage.setItem("paleo_admin_conferences_db", JSON.stringify(confs));
+
+  localStorage.setItem("paleo_admin_demo_submissions_v", DEMO_SUBMISSIONS_SEED_VERSION);
+  console.log("[Admin] Seeded demo conference submissions (reports / accommodation / field trips)");
+}
+
 function seedDemoData() {
   // Only seed if no user data exists yet
   if (localStorage.getItem("paleo_admin_all_users")) return;
@@ -1721,6 +1951,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     // Seed demo data so admin panel has realistic data on first load
     seedDemoData();
+    seedDemoConferenceSubmissions();
   }, []);
 
   const persistNotifications = useCallback((n: AdminNotification[]) => {
@@ -2266,7 +2497,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newConf: ConferenceRecord = {
       ...data,
       id: `conf-${Date.now()}`,
-      branchName: BRANCH_MAP[data.branchId] || data.branchId,
+      branchName: resolveSocietyName(data.branchId),
       memberFee: data.feeConfig?.nonStudentMember || data.memberFee || 1000,
       nonMemberFee: data.feeConfig?.nonStudentNonMember || data.nonMemberFee || Math.round((data.feeConfig?.nonStudentMember || data.memberFee || 1000) * 1.1),
       registrations: 0,
@@ -2302,7 +2533,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     const idx = confs.findIndex((c: ConferenceRecord) => c.id === id);
     if (idx >= 0) {
-      confs[idx] = { ...confs[idx], ...data, branchName: BRANCH_MAP[data.branchId] || data.branchId };
+      confs[idx] = { ...confs[idx], ...data, branchName: resolveSocietyName(data.branchId) };
       localStorage.setItem("paleo_admin_conferences_db", JSON.stringify(confs));
       toast.success("会议更新成功");
       triggerRefresh();
@@ -2318,11 +2549,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { vouchers, invoices } = buildReviewQueues();
     const confs = getAllConferences();
     // Phase 1: 分会管理员只看本分会数据
-    const branchCounts = Object.entries(BRANCH_MAP)
+    const branchCounts = Object.entries(ALL_SOCIETY_UNITS)
       .filter(([id]) => adminRole !== "branch_admin" || id === adminBranchId)
       .map(([id, name]) => ({
         name,
-        count: members.filter(m => m.boundBranches.includes(id)).length,
+        count:
+          id === TOTAL_SOCIETY_ID
+            ? members.length
+            : members.filter(m => m.boundBranches.includes(id)).length,
       }));
     const nonMemberUsers = members.filter(m => m.userType === "non_member");
     const memberUsers = members.filter(m => m.userType === "member");
@@ -2470,10 +2704,23 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [getAllMembers, getAllConferences]);
 
-  // Phase 3: Per-society statistics（基于实收报名记录）
+  // Phase 3: Per-society statistics（基于实收报名记录 + 绑定注册会员）
   const getSocietyStats = useCallback((societyId: string): SocietyStats => {
     const confs = getAllConferences().filter(c => c.branchId === societyId);
     const societyName = ALL_SOCIETY_UNITS[societyId] || societyId;
+    const allSiteMembers = getAllMembers();
+
+    const boundUsers =
+      societyId === TOTAL_SOCIETY_ID
+        ? allSiteMembers
+        : allSiteMembers.filter(m => m.boundBranches.includes(societyId));
+
+    const regMemberUsers = boundUsers.filter(m => m.userType === "member");
+    const regNonMemberUsers = boundUsers.filter(m => m.userType === "non_member");
+    const registeredStudentMembers = regMemberUsers.filter(m => m.role === "学生").length;
+    const registeredNonStudentMembers = regMemberUsers.filter(m => m.role !== "学生").length;
+    const registeredStudentNonMembers = regNonMemberUsers.filter(m => m.role === "学生").length;
+    const registeredNonStudentNonMembers = regNonMemberUsers.filter(m => m.role !== "学生").length;
 
     const allAttendees: ConferenceAttendee[] = [];
     for (const conf of confs) {
@@ -2512,6 +2759,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return {
       societyName,
+      registeredTotal: boundUsers.length,
+      registeredMembers: regMemberUsers.length,
+      registeredNonMembers: regNonMemberUsers.length,
+      registeredStudentMembers,
+      registeredNonStudentMembers,
+      registeredStudentNonMembers,
+      registeredNonStudentNonMembers,
       totalAttendees: revenueAttendees.length,
       totalMembers: studentMembers + nonStudentMembers,
       totalNonMembers: studentNonMembers + nonStudentNonMembers,
@@ -2522,7 +2776,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       totalConferenceFee,
       feeBreakdown,
     };
-  }, [getAllConferences]);
+  }, [getAllConferences, getAllMembers]);
 
   // Phase 3: Per-conference statistics（基于实收报名记录）
   const getConferenceStats = useCallback((confId: string): ConferenceStats => {

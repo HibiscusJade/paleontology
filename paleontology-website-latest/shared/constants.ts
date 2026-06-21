@@ -388,24 +388,110 @@ export const FIELD_TRIP_PHASE_LABEL: Record<string, string> = {
   post:   "会后",
 };
 
+/** 野外路线性别限制（部分路线需按性别分组报名） */
+export type FieldTripGenderRestriction = "male" | "female" | "any";
+
+export const FIELD_TRIP_GENDER_RESTRICTION_LABEL: Record<FieldTripGenderRestriction, string> = {
+  any: "不限",
+  male: "限男性",
+  female: "限女性",
+};
+
 /** 野外路线 */
 export interface FieldTripRoute {
   id: string;
-  phase: FieldTripPhase;  // 会前/会中/会后
-  name: string;            // 路线名称
-  order: number;           // 路线序号 1-5
+  phase: FieldTripPhase;
+  name: string;
+  order: number;
+  genderRestriction?: FieldTripGenderRestriction;
 }
 
 /** 用户野外报名选择 */
 export interface FieldTripSelections {
-  pre: string[];      // 会前选中的路线 ID
-  during: string[];   // 会中选中的路线 ID
-  post: string[];     // 会后选中的路线 ID
+  pre: string[];
+  during: string[];
+  post: string[];
 }
 
 /** 创建空的野外选择 */
 export function createEmptyFieldTripSelections(): FieldTripSelections {
   return { pre: [], during: [], post: [] };
+}
+
+const FIELD_TRIP_ORDER_CN = ["一", "二", "三", "四", "五"] as const;
+
+/** 生成 15 条默认野外路线（会前/会中/会后各 5 条） */
+export function createDefaultFieldTripRoutes(
+  prefix: string,
+  locationHint = "当地"
+): FieldTripRoute[] {
+  const phases: FieldTripPhase[] = ["pre", "during", "post"];
+  const phasePrefix: Record<FieldTripPhase, string> = {
+    pre: "会前野外",
+    during: "会中野外",
+    post: "会后野外",
+  };
+  const genderPattern: FieldTripGenderRestriction[] = ["any", "male", "female", "any", "any"];
+  const routes: FieldTripRoute[] = [];
+
+  for (const phase of phases) {
+    for (let i = 1; i <= 5; i++) {
+      routes.push({
+        id: `${prefix}-${phase}-${i}`,
+        phase,
+        name: `${phasePrefix[phase]}路线${FIELD_TRIP_ORDER_CN[i - 1]}：${locationHint}考察${i}`,
+        order: i,
+        genderRestriction: genderPattern[i - 1],
+      });
+    }
+  }
+  return routes;
+}
+
+/** 解析学会/分会显示名称（含总学会） */
+export function resolveSocietyName(societyId: string): string {
+  return ALL_SOCIETY_UNITS[societyId] || BRANCH_MAP[societyId] || societyId;
+}
+
+/** 判断用户是否可选某条野外路线（需已填写性别） */
+export function canSelectFieldTripRoute(
+  route: FieldTripRoute,
+  userGender: string
+): { allowed: boolean; reason?: string } {
+  const restriction = route.genderRestriction || "any";
+  if (restriction === "any") return { allowed: true };
+  if (!userGender) {
+    return { allowed: false, reason: "请先在基本信息中选择性别后再报名野外" };
+  }
+  const userSide = userGender === "男" ? "male" : userGender === "女" ? "female" : null;
+  if (!userSide) {
+    return { allowed: false, reason: "请先在基本信息中选择有效性别" };
+  }
+  if (userSide !== restriction) {
+    return {
+      allowed: false,
+      reason: `此路线${FIELD_TRIP_GENDER_RESTRICTION_LABEL[restriction]}，与您的性别不符`,
+    };
+  }
+  return { allowed: true };
+}
+
+/** 校验野外路线选择是否符合性别限制 */
+export function validateFieldTripSelections(
+  routes: FieldTripRoute[],
+  selections: FieldTripSelections,
+  userGender: string
+): string | null {
+  const routeMap = new Map(routes.map(r => [r.id, r]));
+  for (const phase of ["pre", "during", "post"] as const) {
+    for (const routeId of selections[phase] || []) {
+      const route = routeMap.get(routeId);
+      if (!route) continue;
+      const check = canSelectFieldTripRoute(route, userGender);
+      if (!check.allowed) return check.reason || "野外路线选择无效";
+    }
+  }
+  return null;
 }
 
 // ── Phase F1: 截止判断与状态语义 ───────────────────────────────────────────

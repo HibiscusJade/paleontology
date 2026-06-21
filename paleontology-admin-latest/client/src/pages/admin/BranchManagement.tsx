@@ -9,11 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Edit, Users, AlertCircle } from "lucide-react";
+import { Building2, Edit, Users, AlertCircle, Star } from "lucide-react";
+import { ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, TOTAL_SOCIETY_INTRO } from "@shared/constants";
+import { Link } from "wouter";
 
 export default function BranchManagement() {
-  const { getAllBranches, updateBranch, toggleBranchDisabled } = useAdmin();
+  const { getAllBranches, updateBranch, toggleBranchDisabled, getAllMembers, getAllConferences } = useAdmin();
   const branches = getAllBranches();
+  const totalUsers = getAllMembers().length;
+  const totalSocietyConfs = getAllConferences().filter(c => c.branchId === TOTAL_SOCIETY_ID).length;
 
   const [editBranch, setEditBranch] = useState<BranchRecord | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -59,8 +63,48 @@ export default function BranchManagement() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-strata-blue-deep">分会管理</h1>
-        <p className="text-muted-foreground mt-1">管理学会下属专业分会信息</p>
+        <h1 className="text-2xl font-bold text-strata-blue-deep">学会/分会管理</h1>
+        <p className="text-muted-foreground mt-1">管理中国古生物学会（总学会）及 11 个专业分会</p>
+      </div>
+
+      <Card className="border-[#D9C5A0]/50 bg-gradient-to-r from-[#FCFAF7] to-[#D9C5A0]/10">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded bg-[#002B49] flex items-center justify-center">
+                <Star className="h-5 w-5 text-[#D9C5A0]" />
+              </div>
+              <div>
+                <CardTitle className="text-base">{ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}</CardTitle>
+                <CardDescription className="text-xs mt-1 max-w-2xl">{TOTAL_SOCIETY_INTRO}</CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className="shrink-0 bg-[#D9C5A0]/20 text-[#715a3e] border-[#D9C5A0]">
+              总学会
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-4 pt-0">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="h-4 w-4" />
+            <span>全站注册用户 <strong className="text-strata-blue-deep">{totalUsers}</strong> 人（总学会会议对所有用户可见）</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Building2 className="h-4 w-4" />
+            <span>已发布总学会会议 <strong className="text-strata-blue-deep">{totalSocietyConfs}</strong> 场</span>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/admin/conferences">管理总学会会议 →</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/admin/statistics">查看总学会统计 →</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div>
+        <h2 className="text-lg font-semibold text-strata-blue-deep mb-1">11 个专业分会</h2>
+        <p className="text-sm text-muted-foreground">各分会独立管理员账号，仅可管理本分站内容与会议</p>
       </div>
 
       {branches.length === 0 ? (

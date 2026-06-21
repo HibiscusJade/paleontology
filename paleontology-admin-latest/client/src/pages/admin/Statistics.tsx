@@ -23,6 +23,7 @@ import {
   CONFERENCE_STATUS_LABEL,
 } from "@shared/constants";
 import type { ConferenceAttendee } from "@/contexts/AdminContext";
+import type { FieldTripRoute } from "@shared/constants";
 
 // ============================================================================
 // CONSTANTS
@@ -38,6 +39,165 @@ const FEE_TYPE_CHART_COLORS: Record<string, string> = {
 };
 
 type StatLevel = "global" | "society" | "conference";
+
+interface RouteFieldTripStat {
+  routeId: string;
+  routeName: string;
+  phase: "pre" | "during" | "post";
+  genderRestriction?: string;
+  male: number;
+  female: number;
+  total: number;
+}
+
+function computeRouteFieldTripStats(
+  attendees: ConferenceAttendee[],
+  routes: FieldTripRoute[] | undefined
+): RouteFieldTripStat[] {
+  if (!routes?.length) return [];
+  const statsMap = new Map<string, RouteFieldTripStat>();
+  for (const route of routes) {
+    statsMap.set(route.id, {
+      routeId: route.id,
+      routeName: route.name,
+      phase: route.phase,
+      genderRestriction: route.genderRestriction,
+      male: 0,
+      female: 0,
+      total: 0,
+    });
+  }
+  for (const a of attendees) {
+    const sel = a.fieldTripSelections;
+    if (!sel) continue;
+    for (const phase of ["pre", "during", "post"] as const) {
+      for (const routeId of sel[phase] || []) {
+        const row = statsMap.get(routeId);
+        if (!row) continue;
+        row.total += 1;
+        if (a.gender === "男") row.male += 1;
+        if (a.gender === "女") row.female += 1;
+      }
+    }
+  }
+  return routes.map(r => statsMap.get(r.id)!).filter(Boolean);
+}
+
+function FieldTripDetailPanel({
+  attendees,
+  routes,
+}: {
+  attendees: ConferenceAttendee[];
+  routes: FieldTripRoute[] | undefined;
+}) {
+  const routeStats = computeRouteFieldTripStats(attendees, routes);
+  const fieldTripAttendees = attendees.filter(
+    a => a.fieldTripPre || a.fieldTripDuring || a.fieldTripPost
+  );
+
+  if (!routes?.length) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" /> 野外报名详情
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          本场会议未配置野外路线（可在「会议管理」中配置最多 15 条路线）。
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const phases: Array<"pre" | "during" | "post"> = ["pre", "during", "post"];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <TrendingUp className="h-4 w-4" /> 野外报名详情
+        </CardTitle>
+        <CardDescription>
+          各路线报名人数（按性别）及每位参会者的具体路线选择
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {phases.map(phase => {
+          const phaseRoutes = routeStats.filter(r => r.phase === phase);
+          const withRegs = phaseRoutes.filter(r => r.total > 0);
+          if (withRegs.length === 0) return null;
+          return (
+            <div key={phase}>
+              <h4 className="text-sm font-semibold text-strata-blue-deep mb-2">
+                {FIELD_TRIP_PHASE_LABEL[phase]}野外 — 各路线统计
+              </h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>路线</TableHead>
+                    <TableHead>性别限制</TableHead>
+                    <TableHead className="text-right">男</TableHead>
+                    <TableHead className="text-right">女</TableHead>
+                    <TableHead className="text-right">合计</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {withRegs.map(r => (
+                    <TableRow key={r.routeId}>
+                      <TableCell className="text-sm max-w-[280px]">{r.routeName}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.genderRestriction === "male" ? "限男性" : r.genderRestriction === "female" ? "限女性" : "不限"}
+                      </TableCell>
+                      <TableCell className="text-right">{r.male}</TableCell>
+                      <TableCell className="text-right">{r.female}</TableCell>
+                      <TableCell className="text-right font-medium">{r.total}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          );
+        })}
+
+        <div>
+          <h4 className="text-sm font-semibold text-strata-blue-deep mb-2">
+            野外报名人员名单（{fieldTripAttendees.length} 人）
+          </h4>
+          {fieldTripAttendees.length === 0 ? (
+            <p className="text-sm text-muted-foreground">暂无野外报名记录</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>姓名</TableHead>
+                  <TableHead>性别</TableHead>
+                  <TableHead>单位</TableHead>
+                  <TableHead>所选路线</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fieldTripAttendees.map((a, idx) => (
+                  <TableRow key={`${a.email}-${idx}`}>
+                    <TableCell className="font-medium text-sm">
+                      {a.name}
+                      <span className="text-xs text-muted-foreground block">{a.email}</span>
+                    </TableCell>
+                    <TableCell className="text-sm">{a.gender || "—"}</TableCell>
+                    <TableCell className="text-sm max-w-[160px] truncate" title={a.unit}>{a.unit || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-md">
+                      {a.fieldTripSummary || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function saveExportBlobs(blobs: Blob[], baseName: string) {
   if (blobs.length === 1) {
@@ -108,6 +268,69 @@ function StatCard({
         {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+/** 学会层：绑定注册用户 + 累计参会 两套统计 */
+function SocietyLevelStatsBlocks({ stats }: { stats: SocietyStats }) {
+  return (
+    <>
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-strata-blue-deep flex items-center gap-2">
+          <Users className="h-4 w-4" /> 绑定注册用户统计
+        </h4>
+        <p className="text-xs text-muted-foreground">
+          统计已绑定该学会/分会的注册用户身份（总学会为全站注册用户；不含仅参会未绑定用户）
+        </p>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="绑定注册总人数" value={stats.registeredTotal} icon={Users} />
+          <StatCard
+            title="绑定会员"
+            value={stats.registeredMembers}
+            subtitle={`学生会员 ${stats.registeredStudentMembers} / 非学生会员 ${stats.registeredNonStudentMembers}`}
+            icon={GraduationCap}
+          />
+          <StatCard
+            title="绑定非会员"
+            value={stats.registeredNonMembers}
+            subtitle={`学生 ${stats.registeredStudentNonMembers} / 非学生 ${stats.registeredNonStudentNonMembers}`}
+            icon={Users}
+          />
+          <StatCard
+            title="会员占比"
+            value={stats.registeredTotal > 0 ? `${Math.round((stats.registeredMembers / stats.registeredTotal) * 100)}%` : "0%"}
+            subtitle={`非会员 ${stats.registeredNonMembers} 人`}
+            icon={TrendingUp}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-strata-blue-deep flex items-center gap-2">
+          <Calendar className="h-4 w-4" /> 累计参会与会议费统计
+        </h4>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="累计参会总人数" value={stats.totalAttendees} icon={Users} />
+          <StatCard
+            title="会员参会"
+            value={stats.totalMembers}
+            subtitle={`学生会员 ${stats.studentMembers} / 非学生会员 ${stats.nonStudentMembers}`}
+            icon={GraduationCap}
+          />
+          <StatCard
+            title="非会员参会"
+            value={stats.totalNonMembers}
+            subtitle={`学生 ${stats.studentNonMembers} / 非学生 ${stats.nonStudentNonMembers}`}
+            icon={Users}
+          />
+          <StatCard
+            title="累计会议费"
+            value={`¥${stats.totalConferenceFee.toLocaleString()}`}
+            icon={CreditCard}
+          />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -568,26 +791,7 @@ function SocietyStatistics({ onRequestGlobalView }: { onRequestGlobalView: () =>
             <h3 className="text-base font-semibold text-strata-blue-deep mb-3 flex items-center gap-2">
               <Building2 className="h-4 w-4" /> {stats.societyName}
             </h3>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <StatCard title="累计参会总人数" value={stats.totalAttendees} icon={Users} />
-              <StatCard
-                title="会员参会"
-                value={stats.totalMembers}
-                subtitle={`学生会员 ${stats.studentMembers} / 非学生会员 ${stats.nonStudentMembers}`}
-                icon={GraduationCap}
-              />
-              <StatCard
-                title="非会员参会"
-                value={stats.totalNonMembers}
-                subtitle={`学生非会员 ${stats.studentNonMembers} / 非学生非会员 ${stats.nonStudentNonMembers}`}
-                icon={Users}
-              />
-              <StatCard
-                title="累计会议费"
-                value={`¥${stats.totalConferenceFee.toLocaleString()}`}
-                icon={CreditCard}
-              />
-            </div>
+            <SocietyLevelStatsBlocks stats={stats} />
           </div>
 
           {/* Fee breakdown */}
@@ -982,11 +1186,15 @@ function ConferenceStatistics() {
                     </TableHeader>
                     <TableBody>
                       {filteredAttendees.map((a, idx) => {
-                        const fieldTripParts: string[] = [];
-                        if (a.fieldTripPre) fieldTripParts.push("会前");
-                        if (a.fieldTripDuring) fieldTripParts.push("会中");
-                        if (a.fieldTripPost) fieldTripParts.push("会后");
-                        const fieldTripText = fieldTripParts.length > 0 ? fieldTripParts.join("/") : "—";
+                        const fieldTripText = a.fieldTripSummary && a.fieldTripSummary !== "—"
+                          ? a.fieldTripSummary
+                          : (() => {
+                              const fieldTripParts: string[] = [];
+                              if (a.fieldTripPre) fieldTripParts.push("会前");
+                              if (a.fieldTripDuring) fieldTripParts.push("会中");
+                              if (a.fieldTripPost) fieldTripParts.push("会后");
+                              return fieldTripParts.length > 0 ? fieldTripParts.join("/") : "—";
+                            })();
 
                         const statusLabel = CONFERENCE_STATUS_LABEL[a.paymentStatus] || a.paymentStatus;
                         const statusColor = a.paymentStatus === "confirmed"
@@ -1023,7 +1231,9 @@ function ConferenceStatistics() {
                             </TableCell>
                             <TableCell className="text-sm">{a.reportType || "—"}</TableCell>
                             <TableCell className="text-sm whitespace-nowrap">{a.accommodationLabel || "—"}</TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">{fieldTripText}</TableCell>
+                            <TableCell className="text-sm max-w-[220px] whitespace-normal" title={fieldTripText}>
+                              {fieldTripText}
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -1196,6 +1406,11 @@ function ConferenceStatistics() {
               </CardContent>
             </Card>
           </div>
+
+          <FieldTripDetailPanel
+            attendees={attendees}
+            routes={allConfs.find(c => c.id === selectedConf)?.fieldTripRoutes}
+          />
         </>
       ) : (
         <Card>
@@ -1259,7 +1474,7 @@ function BranchAdminStatisticsView() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-strata-blue-deep">{ALL_SOCIETY_UNITS[branchId] || branchId} - 数据统计</h2>
-          <p className="text-sm text-muted-foreground">分会累计统计与会议概览（基于实收确认参会记录）</p>
+          <p className="text-sm text-muted-foreground">绑定注册用户 + 累计参会与会议费（基于实收确认记录）</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
           <Download className="h-4 w-4 mr-2" />
@@ -1268,22 +1483,7 @@ function BranchAdminStatisticsView() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="累计参会总人数" value={stats.totalAttendees} icon={Users} />
-        <StatCard
-          title="会员参会"
-          value={stats.totalMembers}
-          subtitle={`学生会员 ${stats.studentMembers} / 非学生会员 ${stats.nonStudentMembers}`}
-          icon={GraduationCap}
-        />
-        <StatCard
-          title="非会员参会"
-          value={stats.totalNonMembers}
-          subtitle={`学生非会员 ${stats.studentNonMembers} / 非学生非会员 ${stats.nonStudentNonMembers}`}
-          icon={Users}
-        />
-        <StatCard title="累计会议费" value={`¥${stats.totalConferenceFee.toLocaleString()}`} icon={CreditCard} />
-      </div>
+      <SocietyLevelStatsBlocks stats={stats} />
 
       {/* Fee breakdown */}
       <div className="grid gap-6 lg:grid-cols-2">

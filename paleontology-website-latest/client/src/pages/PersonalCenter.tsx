@@ -763,7 +763,7 @@ export default function PersonalCenter() {
                 <span className="material-symbols-outlined text-amber-500 mt-0.5">lock</span>
                 <div>
                   <p className="font-bold">需要先选择参与方式</p>
-                  <p className="text-amber-700 mt-1">请先选择成为会员或作为非会员使用，即可绑定专业分会。</p>
+                  <p className="text-amber-700 mt-1">请先选择「成为正式会员」或「作为非会员继续」，两种身份均可绑定分会并报名会议。</p>
                 </div>
               </div>
             )}

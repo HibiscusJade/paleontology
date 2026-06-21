@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Edit, MapPin, Calendar, Users, AlertCircle } from "lucide-react";
-import { ALL_SOCIETY_UNITS, type ConferenceFeeConfig } from "@shared/constants";
+import { ALL_SOCIETY_UNITS, type ConferenceFeeConfig, createDefaultFieldTripRoutes, FIELD_TRIP_GENDER_RESTRICTION_LABEL, type FieldTripGenderRestriction, type FieldTripRoute } from "@shared/constants";
 
 const ALL_BRANCH_OPTIONS = Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => ({ value: id, label: name }));
 
@@ -50,7 +50,7 @@ function ConferenceForm({
   const [accommodationDeadline, setAccommodationDeadline] = useState(initialData?.accommodationDeadline || "");
   const [fieldTripDeadline, setFieldTripDeadline] = useState(initialData?.fieldTripDeadline || "");
   // Phase 4: 野外路线配置
-  const [fieldTripRoutes, setFieldTripRoutes] = useState<{ id: string; phase: "pre" | "during" | "post"; name: string; order: number }[]>(
+  const [fieldTripRoutes, setFieldTripRoutes] = useState<FieldTripRoute[]>(
     initialData?.fieldTripRoutes || []
   );
   const [status, setStatus] = useState<"draft" | "published">(initialData?.status || "draft");
@@ -145,7 +145,13 @@ function ConferenceForm({
     setFieldTripRoutes(fieldTripRoutes.filter((r) => r.id !== id));
   };
 
-  const updateFieldTripRoute = (id: string, updates: Partial<{ phase: "pre" | "during" | "post"; name: string; order: number }>) => {
+  const fillDefaultFieldTripRoutes = () => {
+    const prefix = `route-${branchId || "conf"}-${Date.now()}`;
+    const hint = location.trim() || "当地";
+    setFieldTripRoutes(createDefaultFieldTripRoutes(prefix, hint));
+  };
+
+  const updateFieldTripRoute = (id: string, updates: Partial<FieldTripRoute>) => {
     setFieldTripRoutes(fieldTripRoutes.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
 
@@ -202,7 +208,7 @@ function ConferenceForm({
           {errors.name && <p className="text-party-red text-xs">{errors.name}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="conf-branch">主办分会 *</Label>
+          <Label htmlFor="conf-branch">主办学会/分会 *</Label>
           <Select value={branchId} onValueChange={setBranchId} disabled={adminRole === "branch_admin"}>
             <SelectTrigger id="conf-branch">
               <SelectValue placeholder="选择分会" />
@@ -352,6 +358,19 @@ function ConferenceForm({
                   min={1}
                   max={15}
                 />
+                <Select
+                  value={route.genderRestriction || "any"}
+                  onValueChange={(v) => updateFieldTripRoute(route.id, { genderRestriction: v as FieldTripGenderRestriction })}
+                >
+                  <SelectTrigger className="w-[88px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["any", "male", "female"] as const).map(g => (
+                      <SelectItem key={g} value={g}>{FIELD_TRIP_GENDER_RESTRICTION_LABEL[g]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="ghost"
@@ -367,17 +386,28 @@ function ConferenceForm({
         ) : (
           <p className="text-xs text-muted-foreground">暂未配置野外路线</p>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addFieldTripRoute}
-          disabled={fieldTripRoutes.length >= 15}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          添加野外路线
-        </Button>
-        <p className="text-[10px] text-muted-foreground">每场会议最多 15 条路线，分属会前/会中/会后三个阶段</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addFieldTripRoute}
+            disabled={fieldTripRoutes.length >= 15}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            添加野外路线
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={fillDefaultFieldTripRoutes}
+            disabled={fieldTripRoutes.length >= 15}
+          >
+            填充 15 条默认路线
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">每场会议最多 15 条路线（会前/会中/会后各 5 条）；路线二限男、路线三限女，用于演示性别绑定</p>
       </div>
 
       {/* Phase 2: 会议资料上传 */}

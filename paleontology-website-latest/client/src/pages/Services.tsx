@@ -5,7 +5,7 @@ import { useMembership } from "../contexts/MembershipContext";
 import { toast } from "sonner";
 import LoginJoinDialog from "../components/LoginJoinDialog";
 import { pickAndReadFile, type UploadedFile } from "../lib/fileUpload";
-import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_STATUS, getConferenceFeeConfig as getConfiguredFeeConfig, type ConferenceFeeConfig, CONFERENCE_FEE_TYPE_LABEL, type ConferenceFeeType, ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, TOTAL_SOCIETY_INTRO, TOTAL_SOCIETY_TAGS, TOTAL_SOCIETY_MEETINGS, isSocietyAccessible, isDeadlinePassed, sortConferencesSocietyFirst, ACCOMMODATION_TYPE_LABEL, type AccommodationType, FIELD_TRIP_PHASE_LABEL, type FieldTripRoute, type FieldTripSelections, createEmptyFieldTripSelections } from "@shared/constants";
+import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_STATUS, getConferenceFeeConfig as getConfiguredFeeConfig, type ConferenceFeeConfig, CONFERENCE_FEE_TYPE_LABEL, type ConferenceFeeType, ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, TOTAL_SOCIETY_INTRO, TOTAL_SOCIETY_TAGS, TOTAL_SOCIETY_MEETINGS, isSocietyAccessible, isDeadlinePassed, sortConferencesSocietyFirst, ACCOMMODATION_TYPE_LABEL, type AccommodationType, FIELD_TRIP_PHASE_LABEL, type FieldTripRoute, type FieldTripSelections, createEmptyFieldTripSelections, createDefaultFieldTripRoutes, canSelectFieldTripRoute, validateFieldTripSelections, FIELD_TRIP_GENDER_RESTRICTION_LABEL } from "@shared/constants";
 
 const BRANCH_SERVICES_ID_MAP: Record<string, string> = {
   gwjz: "gwjzdwxfh",
@@ -179,13 +179,7 @@ export default function Services() {
       abstractDeadline: "2026-12-31",
       accommodationDeadline: "2026-12-31",
       fieldTripDeadline: "2026-12-31",
-      fieldTripRoutes: [
-        { id: "demo-pre-1", phase: "pre" as const, name: "路线一：澄江化石地考察", order: 1 },
-        { id: "demo-pre-2", phase: "pre" as const, name: "路线二：梅树村剖面考察", order: 2 },
-        { id: "demo-during-1", phase: "during" as const, name: "路线一：博物馆参观", order: 1 },
-        { id: "demo-post-1", phase: "post" as const, name: "路线一：关山生物群野外考察", order: 1 },
-        { id: "demo-post-2", phase: "post" as const, name: "路线二：滇东寒武系标准剖面", order: 2 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("demo", "澄江"),
       desc: "这是一个演示会议，用于展示参会信息填写流程。会议费已审核通过，您可以直接点击'填写参会与报告信息'按钮体验完整的参会流程，包括选择报告类型、上传摘要、选择住宿等功能。"
     },
     {
@@ -201,11 +195,7 @@ export default function Services() {
       abstractDeadline: "2026-10-15",
       accommodationDeadline: "2026-11-08",
       fieldTripDeadline: "2026-11-08",
-      fieldTripRoutes: [
-        { id: "conf1-pre-1", phase: "pre" as const, name: "路线一：南京汤山地质考察", order: 1 },
-        { id: "conf1-during-1", phase: "during" as const, name: "路线一：南京古生物博物馆", order: 1 },
-        { id: "conf1-post-1", phase: "post" as const, name: "路线一：栖霞山化石采集", order: 1 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf1", "南京"),
       desc: "本次大会由中国古生物学会微体学分会主办，围绕'微体古生物与能源勘探、环境演变及精细生物地层学'开展广泛学术交流，热忱欢迎广大古生物学、地层学及石油地质领域的科研人员、高校师生及行业代表参会。"
     },
     {
@@ -221,7 +211,7 @@ export default function Services() {
       abstractDeadline: "2026-11-01",
       accommodationDeadline: "2026-11-28",
       fieldTripDeadline: "2026-11-28",
-      fieldTripRoutes: [] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf2", "北京"),
       desc: "探讨陆地植物的多样性起源、古生代至新生代植被演替以及重大气候事件对陆地生态系统的重塑。会议将邀请多位国际知名学者作大会特邀报告。"
     },
     {
@@ -237,10 +227,7 @@ export default function Services() {
       abstractDeadline: "2027-02-10",
       accommodationDeadline: "2027-03-13",
       fieldTripDeadline: "2027-03-13",
-      fieldTripRoutes: [
-        { id: "conf3-pre-1", phase: "pre" as const, name: "路线一：热河生物群经典剖面考察", order: 1 },
-        { id: "conf3-post-1", phase: "post" as const, name: "路线一：四合屯化石保护区", order: 1 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf3", "朝阳"),
       desc: "纪念热河生物群发现百周年国际盛会，聚焦中生代陆相生态系统的辐射演化，包括羽毛恐龙、早期鸟类及被子植物的起源等世界级科学难题。"
     },
     {
@@ -256,12 +243,7 @@ export default function Services() {
       abstractDeadline: "2026-08-15",
       accommodationDeadline: "2026-09-11",
       fieldTripDeadline: "2026-09-11",
-      fieldTripRoutes: [
-        { id: "conf4-pre-1", phase: "pre" as const, name: "路线一：澄江化石地世界自然遗产考察", order: 1 },
-        { id: "conf4-during-1", phase: "during" as const, name: "路线一：云南省博物馆古生物厅", order: 1 },
-        { id: "conf4-post-1", phase: "post" as const, name: "路线一：禄丰恐龙谷考察", order: 1 },
-        { id: "conf4-post-2", phase: "post" as const, name: "路线二：罗平生物群化石采集", order: 2 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf4", "昆明"),
       desc: "全国古脊椎动物学领域最重要的年度学术盛会，聚焦脊椎动物起源与演化、恐龙与鸟类关系、哺乳动物辐射演化等核心议题，欢迎国内外相关领域学者踊跃参会。"
     },
     {
@@ -277,7 +259,7 @@ export default function Services() {
       abstractDeadline: "2026-09-15",
       accommodationDeadline: "2026-10-15",
       fieldTripDeadline: "2026-10-15",
-      fieldTripRoutes: [] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf5", "广州"),
       desc: "汇聚全国孢粉学研究力量，围绕孢粉化石与古气候重建、第四纪环境演变、生物地层精细划分等热点议题开展深入交流，并设有孢粉鉴定技术培训专场。"
     },
     {
@@ -293,9 +275,7 @@ export default function Services() {
       abstractDeadline: "2026-07-05",
       accommodationDeadline: "2026-08-01",
       fieldTripDeadline: "2026-08-01",
-      fieldTripRoutes: [
-        { id: "conf6-post-1", phase: "post" as const, name: "路线一：自贡恐龙博物馆考察", order: 1 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf6", "成都"),
       desc: "聚焦化石记录中生物与古环境的相互关系，探讨古生态系统对重大地质事件的响应机制，涵盖群落古生态、功能形态学及古食物网重建等前沿方向。"
     },
     {
@@ -311,7 +291,7 @@ export default function Services() {
       abstractDeadline: "2026-06-10",
       accommodationDeadline: "2026-06-28",
       fieldTripDeadline: "2026-06-28",
-      fieldTripRoutes: [] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf7", "武汉"),
       desc: "聚焦生物与地球系统的协同演化，探讨生物成矿、碳循环与生命起源等重大科学问题，是地球生物学分会成立以来规模最大的年度学术活动。"
     },
     {
@@ -327,7 +307,7 @@ export default function Services() {
       abstractDeadline: "2026-11-01",
       accommodationDeadline: "2026-11-21",
       fieldTripDeadline: "2026-11-21",
-      fieldTripRoutes: [] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("conf8", "武汉"),
       desc: "专注于CT扫描、三维重建、同步辐射、人工智能识别等新技术在古生物学研究中的最新应用，设有技术演示与实操培训环节，欢迎对新技术感兴趣的研究人员参加。"
     },
     // Phase 2: 总学会会议
@@ -344,13 +324,7 @@ export default function Services() {
       abstractDeadline: "2026-08-30",
       accommodationDeadline: "2026-10-08",
       fieldTripDeadline: "2026-10-08",
-      fieldTripRoutes: [
-        { id: "zgs1-pre-1", phase: "pre" as const, name: "路线一：南京汤山—青龙山地质剖面", order: 1 },
-        { id: "zgs1-pre-2", phase: "pre" as const, name: "路线二：栖霞山二叠系标准剖面", order: 2 },
-        { id: "zgs1-during-1", phase: "during" as const, name: "路线一：南京古生物博物馆", order: 1 },
-        { id: "zgs1-post-1", phase: "post" as const, name: "路线一：浙江长兴金钉子剖面", order: 1 },
-        { id: "zgs1-post-2", phase: "post" as const, name: "路线二：安徽巢湖鱼龙化石产地", order: 2 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("zgs1", "南京"),
       desc: "中国古生物学会主办的最高级别全国性学术年会，涵盖古无脊椎动物、古脊椎动物、古植物、孢粉、微体、地球生物学等全部分支学科。大会将邀请多位院士和国际知名学者作大会特邀报告，设有全部分会场的学术交流环节，是古生物学界两年一度的学术盛会。"
     },
     {
@@ -366,10 +340,7 @@ export default function Services() {
       abstractDeadline: "2027-03-01",
       accommodationDeadline: "2027-04-03",
       fieldTripDeadline: "2027-04-03",
-      fieldTripRoutes: [
-        { id: "zgs2-pre-1", phase: "pre" as const, name: "路线一：周口店北京猿人遗址考察", order: 1 },
-        { id: "zgs2-post-1", phase: "post" as const, name: "路线一：辽西热河生物群野外考察", order: 1 },
-      ] as FieldTripRoute[],
+      fieldTripRoutes: createDefaultFieldTripRoutes("zgs2", "北京"),
       desc: "由总学会主办的国际性高端学术论坛，聚焦古生物学领域最新前沿进展，包括早期生命演化、关键演化转折期、古环境与古气候重建等重大科学议题。邀请Nature、Science等顶刊近期发表成果的作者进行专题报告，促进国际学术合作与交流。"
     }
   ];
@@ -1276,9 +1247,11 @@ export default function Services() {
                 <div>
                   <h2 className="text-base font-bold text-[#002B49]">会议绑定管理</h2>
                   <p className="text-slate-400 text-[10px] mt-1">
-                    {isMemberActive
-                      ? "您是学会正式会员，可自由绑定或解绑任意专业分会，绑定后自动接收该分会的会议通知与学术资讯。"
-                      : "成为学会会员后，方可绑定专业分会。"}
+                    {userType === "regular"
+                      ? "请先选择「会员」或「非会员」参与方式，即可绑定任意专业分会；总学会会议对所有注册用户可见。"
+                      : userType === "member"
+                      ? "您是学会正式会员，可自由绑定或解绑任意专业分会；绑定后接收该分会会议通知与学术资讯。"
+                      : "您是注册非会员，可直接绑定任意专业分会并按非会员标准报名会议；总学会会议无需绑定即可查看。"}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
@@ -1291,12 +1264,12 @@ export default function Services() {
                 </div>
               </div>
 
-              {isRegular && (
+              {userType === "regular" && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-xs text-amber-800 flex items-start gap-3">
-                  <span className="material-symbols-outlined text-amber-600 mt-0.5">lock</span>
+                  <span className="material-symbols-outlined text-amber-600 mt-0.5">info</span>
                   <div>
-                    <p className="font-bold">需要先成为学会会员</p>
-                    <p className="mt-1">请在左侧申请入会并缴纳年费后，即可绑定专业分会。</p>
+                    <p className="font-bold">请先选择参与方式</p>
+                    <p className="mt-1">登录后选择「成为正式会员」或「作为非会员继续」，两种身份均可绑定分会并报名会议（按各自标准缴费）。</p>
                   </div>
                 </div>
               )}
@@ -1413,6 +1386,14 @@ export default function Services() {
 
       const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const routes = (conf as { fieldTripRoutes?: FieldTripRoute[] })?.fieldTripRoutes;
+        if (routes?.length && regForm.fieldTripSelections) {
+          const tripErr = validateFieldTripSelections(routes, regForm.fieldTripSelections, regForm.gender);
+          if (tripErr) {
+            toast.error(tripErr);
+            return;
+          }
+        }
         const now = new Date().toLocaleString("zh-CN");
         submitConferenceForm(editingReg, {
           name: regForm.name,
@@ -1791,19 +1772,27 @@ export default function Services() {
                           <p className="text-xs font-bold text-slate-600">{phaseLabel[phase]}（可多选）：</p>
                           {phaseRoutes.map(route => {
                             const isChecked = selections[phase]?.includes(route.id) || false;
+                            const genderCheck = canSelectFieldTripRoute(route, regForm.gender);
+                            const routeLocked = disabled || (!isChecked && !genderCheck.allowed);
                             return (
                               <label
                                 key={route.id}
-                                className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                                  isChecked
-                                    ? "border-[#002B49] bg-[#002B49]/5"
-                                    : "border-[#E5E1DA] bg-white hover:border-slate-300"
+                                className={`flex items-start gap-3 p-2.5 rounded-lg border transition-all ${
+                                  routeLocked && !disabled
+                                    ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed"
+                                    : isChecked
+                                    ? "border-[#002B49] bg-[#002B49]/5 cursor-pointer"
+                                    : "border-[#E5E1DA] bg-white hover:border-slate-300 cursor-pointer"
                                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                               >
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => {
+                                    if (!genderCheck.allowed) {
+                                      toast.error(genderCheck.reason || "无法选择该野外路线");
+                                      return;
+                                    }
                                     const newSelections = { ...selections };
                                     const arr = [...(newSelections[phase] || [])];
                                     const idx = arr.indexOf(route.id);
@@ -1813,14 +1802,24 @@ export default function Services() {
                                     setRegForm({ ...regForm, fieldTripSelections: newSelections });
                                     toggleFieldTripRoute(editingReg!, phase, route.id);
                                   }}
-                                  disabled={disabled}
+                                  disabled={disabled || routeLocked}
                                   className="sr-only"
                                 />
-                                <span className={`material-symbols-outlined text-sm ${isChecked ? "text-[#002B49]" : "text-slate-400"}`}>
+                                <span className={`material-symbols-outlined text-sm mt-0.5 ${isChecked ? "text-[#002B49]" : "text-slate-400"}`}>
                                   {isChecked ? "check_box" : "check_box_outline_blank"}
                                 </span>
-                                <span className={`text-xs flex-1 ${isChecked ? "font-bold text-[#002B49]" : "text-slate-600"}`}>
-                                  {route.name}
+                                <span className="flex-1 min-w-0">
+                                  <span className={`text-xs block ${isChecked ? "font-bold text-[#002B49]" : "text-slate-600"}`}>
+                                    {route.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 mt-0.5 flex flex-wrap gap-2">
+                                    {route.genderRestriction && route.genderRestriction !== "any" && (
+                                      <span className="text-[#715a3e]">{FIELD_TRIP_GENDER_RESTRICTION_LABEL[route.genderRestriction]}</span>
+                                    )}
+                                    {!genderCheck.allowed && !disabled && (
+                                      <span className="text-red-600">{genderCheck.reason}</span>
+                                    )}
+                                  </span>
                                 </span>
                               </label>
                             );
@@ -1829,11 +1828,14 @@ export default function Services() {
                       );
                     });
                   })()}
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800">
+                    野外报名将绑定您在基本信息中填写的性别，部分路线限男/限女；请先填写性别后再选择路线。
+                  </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
                     <span className="material-symbols-outlined text-sm mt-0.5">info</span>
                     <div>
-                      <p className="font-bold">💰 野外费用由旅游公司收取，不纳入学会会议费</p>
-                      <p className="mt-1">{isFieldTripDeadlineExceeded() ? "截止后未报名视为自行联系旅游公司" : "截止后未报名视为自行联系旅游公司"}</p>
+                      <p className="font-bold">野外费用由旅游公司收取，不纳入学会会议费</p>
+                      <p className="mt-1">截止后未报名视为自行联系旅游公司</p>
                     </div>
                   </div>
                 </div>
@@ -2756,7 +2758,7 @@ export default function Services() {
                         onClick={() => setActiveTab("member")}
                         className="border border-[#002B49] text-[#002B49] px-4 py-2 rounded font-bold text-xs hover:bg-[#002B49] hover:text-white transition-colors text-center"
                       >
-                        绑定分会后可报名
+                        绑定该分会后可报名
                       </button>
                     )}
                     {/* Non-members and verified members with bound branch: can pay */}
