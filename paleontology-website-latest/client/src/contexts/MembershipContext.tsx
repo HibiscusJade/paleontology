@@ -64,6 +64,7 @@ export interface SocietyMembership {
   rejectReason?: string;
   voucherRejectReason?: string;
   invoiceRejectReason?: string;
+  applicationRejectReason?: string;
   invoiceDeadline?: string;
   invoiceExtendedDeadline?: string;
   frozenDueToExpiry?: boolean;
@@ -247,6 +248,12 @@ interface MembershipContextType {
   getMembershipApplicationTemplateUrl: () => string;
   getWithdrawalApplicationTemplateUrl: () => string;
 
+  // 入会/退会申请模拟审核（演示用，等同 Admin AuditWorkbench approve/reject）
+  simApproveMembershipApplication: () => void;
+  simRejectMembershipApplication: (reason: string) => void;
+  simApproveWithdrawalApplication: () => void;
+  simRejectWithdrawalApplication: (reason: string) => void;
+
   // General Helpers
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -343,6 +350,54 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  // Phase 2: 轮询 localStorage，同步管理端 AuditWorkbench 审核结果到 React 状态
+  useEffect(() => {
+    if (!currentUser) return;
+    const email = currentUser.email;
+
+    const syncAuditFromStorage = () => {
+      const storedMem = localStorage.getItem(`paleo_society_membership_${email}`);
+      if (storedMem) {
+        const parsed = JSON.parse(storedMem) as SocietyMembership;
+        setSocietyMembership((prev) =>
+          prev.status === parsed.status &&
+          prev.expiryDate === parsed.expiryDate &&
+          prev.applicationRejectReason === parsed.applicationRejectReason
+            ? prev
+            : parsed
+        );
+      }
+
+      const storedApp = localStorage.getItem(`paleo_membership_application_${email}`);
+      const nextApp = storedApp ? JSON.parse(storedApp) as MembershipApplication : null;
+      setMembershipApplication((prev) =>
+        JSON.stringify(prev) === JSON.stringify(nextApp) ? prev : nextApp
+      );
+
+      const storedWd = localStorage.getItem(`paleo_withdrawal_application_${email}`);
+      const nextWd = storedWd ? JSON.parse(storedWd) as WithdrawalApplication : null;
+      setWithdrawalApplication((prev) =>
+        JSON.stringify(prev) === JSON.stringify(nextWd) ? prev : nextWd
+      );
+
+      const storedType = localStorage.getItem(`paleo_user_type_${email}`);
+      if (storedType) {
+        setUserType((prev) => (prev === storedType ? prev : storedType as UserType));
+      }
+    };
+
+    syncAuditFromStorage();
+    const timer = window.setInterval(syncAuditFromStorage, 2500);
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || e.key.includes(email)) syncAuditFromStorage();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [currentUser?.email]);
+
   const loadUserState = (email: string) => {
     const membershipKey = `paleo_society_membership_${email}`;
     const branchesKey = `paleo_bound_branches_${email}`;
@@ -386,8 +441,54 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setWithdrawalApplication(storedWd ? JSON.parse(storedWd) : null);
   };
 
-  const saveState = (key: string, data: any) => {
+  /** 用户端写入时同步管理端 localStorage（Phase 1/2 双写策略） */
+  const ADMIN_MIRROR_PREFIXES = ["paleo_confs_", "paleo_society_membership_", "paleo_bound_branches_"];
+
+  const saveState = (key: string, data: unknown) => {
     localStorage.setItem(key, JSON.stringify(data));
+    if (ADMIN_MIRROR_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      localStorage.setItem(key.replace(/^paleo_/, "paleo_admin_"), JSON.stringify(data));
+    }
+  };
+
+  const syncAdminUserRegistry = (user: User) => {
+    const profile = {
+      name: user.name,
+      email: user.email,
+      gender: user.gender,
+      unit: user.unit,
+      role: user.role,
+      isStudent: user.isStudent ?? user.role === "学生",
+      memberType: user.memberType,
+    };
+    const adminUsers: typeof profile[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+    const idx = adminUsers.findIndex((u) => u.email.toLowerCase() === user.email.toLowerCase());
+    if (idx >= 0) adminUsers[idx] = { ...adminUsers[idx], ...profile };
+    else adminUsers.push(profile);
+    localStorage.setItem("paleo_admin_all_users", JSON.stringify(adminUsers));
+  };
+
+  const syncAdminApplication = (
+    email: string,
+    kind: "membership" | "withdrawal",
+    app: MembershipApplication | WithdrawalApplication | null
+  ) => {
+    const userKey =
+      kind === "membership"
+        ? `paleo_membership_application_${email}`
+        : `paleo_withdrawal_application_${email}`;
+    const adminKey =
+      kind === "membership"
+        ? `paleo_admin_membership_application_${email}`
+        : `paleo_admin_withdrawal_application_${email}`;
+    if (app) {
+      const payload = JSON.stringify(app);
+      localStorage.setItem(userKey, payload);
+      localStorage.setItem(adminKey, payload);
+    } else {
+      localStorage.removeItem(userKey);
+      localStorage.removeItem(adminKey);
+    }
   };
 
   const addNotification = (notif: Omit<SystemNotification, "id" | "time" | "read">, email?: string) => {
@@ -436,6 +537,11 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     localStorage.setItem(`paleo_bound_branches_${email}`, JSON.stringify([]));
     localStorage.setItem(`paleo_confs_${email}`, JSON.stringify({}));
     localStorage.setItem(`paleo_notifs_${email}`, JSON.stringify(DEFAULT_NOTIFICATIONS));
+    // 同步管理端 registry（AuditWorkbench 可读）
+    localStorage.setItem(`paleo_admin_society_membership_${email}`, JSON.stringify(DEFAULT_SOCIETY_MEMBERSHIP));
+    localStorage.setItem(`paleo_admin_bound_branches_${email}`, JSON.stringify([]));
+    localStorage.setItem(`paleo_admin_confs_${email}`, JSON.stringify({}));
+    syncAdminUserRegistry(newUser);
 
     toast.success("账号注册成功！请登录后前往【学会服务 → 会员服务】缴纳会员费，成为正式会员。");
     return true;
@@ -528,6 +634,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const updatedAllUsers = allUsers.map(u => u.email === currentUser.email ? { ...u, ...profileUpdates } : u);
     setAllUsers(updatedAllUsers);
     saveState("paleo_all_users", updatedAllUsers);
+    syncAdminUserRegistry(updated);
 
     addNotification({ title: "个人资料更新成功", content: "您的实名信息和学术背景资料已成功更新。", type: "info" });
     toast.success("个人信息修改成功！");
@@ -555,6 +662,19 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   /** 阶段一：提交缴费凭证 → status = voucher_submitted */
   const submitMembershipVoucher = (voucherUrl: string, amount: number) => {
     if (!currentUser) { toast.error("请先登录系统。"); return; }
+
+    const payableStatuses: MembershipStatus[] = [
+      "application_approved",
+      "expired",
+      "voucher_rejected",
+      "invoice_rejected",
+      "invoice_pending",
+      "invoice_overdue",
+    ];
+    if (userType === "member" && !payableStatuses.includes(societyMembership.status as MembershipStatus)) {
+      toast.error("请先提交入会申请书并通过管理员审核后，再缴纳会费。");
+      return;
+    }
 
     const newRecord: PaymentRecord = {
       id: `rec-s-${Date.now()}`,
@@ -1393,7 +1513,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setMembershipApplication(app);
     const email = currentUser.email;
-    localStorage.setItem(`paleo_membership_application_${email}`, JSON.stringify(app));
+    syncAdminApplication(email, "membership", app);
+    syncAdminUserRegistry(currentUser);
 
     // 同步更新会员状态
     const updatedMembership: SocietyMembership = {
@@ -1423,7 +1544,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setMembershipApplication(null);
     const email = currentUser.email;
-    localStorage.removeItem(`paleo_membership_application_${email}`);
+    syncAdminApplication(email, "membership", null);
 
     // 恢复会员状态
     const updatedMembership: SocietyMembership = {
@@ -1456,7 +1577,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setWithdrawalApplication(app);
     const email = currentUser.email;
-    localStorage.setItem(`paleo_withdrawal_application_${email}`, JSON.stringify(app));
+    syncAdminApplication(email, "withdrawal", app);
+    syncAdminUserRegistry(currentUser);
 
     // 同步更新会员状态
     const updatedMembership: SocietyMembership = {
@@ -1486,7 +1608,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setWithdrawalApplication(null);
     const email = currentUser.email;
-    localStorage.removeItem(`paleo_withdrawal_application_${email}`);
+    syncAdminApplication(email, "withdrawal", null);
 
     // 恢复为 active 状态
     const updatedMembership: SocietyMembership = {
@@ -1530,6 +1652,155 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return "";
   };
 
+  // ── 入会/退会申请模拟审核（演示用） ──
+
+  /** 模拟管理员通过入会申请 → application_approved（等同 AuditWorkbench approveMembershipApplication） */
+  const simApproveMembershipApplication = () => {
+    if (!currentUser) return;
+    if (societyMembership.status !== "application_submitted" || !membershipApplication) {
+      toast.error("当前没有待审核的入会申请。");
+      return;
+    }
+
+    const email = currentUser.email;
+    const reviewTime = new Date().toISOString();
+    const updatedApp: MembershipApplication = {
+      ...membershipApplication,
+      status: "application_approved",
+      reviewTime,
+    };
+
+    setMembershipApplication(updatedApp);
+    syncAdminApplication(email, "membership", updatedApp);
+
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "application_approved",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "入会申请已通过",
+      content: "您的入会申请书已审核通过，请前往会员服务缴纳会费完成入会。",
+      type: "success",
+    });
+    toast.success("入会申请已审核通过（演示），请缴纳会费。");
+  };
+
+  /** 模拟管理员驳回入会申请 */
+  const simRejectMembershipApplication = (reason: string) => {
+    if (!currentUser) return;
+    if (societyMembership.status !== "application_submitted" || !membershipApplication) {
+      toast.error("当前没有待审核的入会申请。");
+      return;
+    }
+
+    const email = currentUser.email;
+    const reviewTime = new Date().toISOString();
+    const updatedApp: MembershipApplication = {
+      ...membershipApplication,
+      status: "application_rejected",
+      rejectReason: reason,
+      reviewTime,
+    };
+
+    setMembershipApplication(updatedApp);
+    syncAdminApplication(email, "membership", updatedApp);
+
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "application_rejected",
+      applicationRejectReason: reason,
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "入会申请被驳回",
+      content: `您的入会申请书被驳回。原因：${reason}。请修改后重新提交。`,
+      type: "warning",
+    });
+    toast.error(`入会申请被驳回：${reason}`);
+  };
+
+  /** 模拟管理员通过退会申请 → withdrawn（等同 AuditWorkbench approveWithdrawalApplication） */
+  const simApproveWithdrawalApplication = () => {
+    if (!currentUser) return;
+    if (societyMembership.status !== "withdrawal_submitted" || !withdrawalApplication) {
+      toast.error("当前没有待审核的退会申请。");
+      return;
+    }
+
+    const email = currentUser.email;
+    const reviewTime = new Date().toISOString();
+    const updatedApp: WithdrawalApplication = {
+      ...withdrawalApplication,
+      status: "withdrawn",
+      reviewTime,
+    };
+
+    setWithdrawalApplication(updatedApp);
+    syncAdminApplication(email, "withdrawal", updatedApp);
+
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "withdrawn",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    setUserType("non_member");
+    localStorage.setItem(`paleo_user_type_${email}`, "non_member");
+    localStorage.setItem(`paleo_admin_user_type_${email}`, "non_member");
+
+    addNotification({
+      title: "退会申请已通过",
+      content: "您的退会申请已审核通过，会员资格已终止。已缴费的待参会订单保留。",
+      type: "info",
+    });
+    toast.success("退会申请已通过（演示），会员资格已终止。");
+  };
+
+  /** 模拟管理员驳回退会申请 → 恢复 active */
+  const simRejectWithdrawalApplication = (reason: string) => {
+    if (!currentUser) return;
+    if (societyMembership.status !== "withdrawal_submitted" || !withdrawalApplication) {
+      toast.error("当前没有待审核的退会申请。");
+      return;
+    }
+
+    const email = currentUser.email;
+    const reviewTime = new Date().toISOString();
+    const updatedApp: WithdrawalApplication = {
+      ...withdrawalApplication,
+      status: "withdrawal_rejected",
+      rejectReason: reason,
+      reviewTime,
+    };
+
+    setWithdrawalApplication(updatedApp);
+    syncAdminApplication(email, "withdrawal", updatedApp);
+
+    const updatedMembership: SocietyMembership = {
+      ...societyMembership,
+      status: "active",
+      history: societyMembership.history,
+    };
+    setSocietyMembership(updatedMembership);
+    saveState(`paleo_society_membership_${email}`, updatedMembership);
+
+    addNotification({
+      title: "退会申请被驳回",
+      content: `您的退会申请被驳回。原因：${reason}。会员资格保持不变。`,
+      type: "warning",
+    });
+    toast.error(`退会申请被驳回：${reason}`);
+  };
+
   const chooseMembershipPath = (path: "member" | "non_member") => {
     if (!currentUser) { toast.error("请先登录系统。"); return; }
 
@@ -1539,6 +1810,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const email = currentUser.email;
     localStorage.setItem(`paleo_user_type_${email}`, path);
     localStorage.setItem(`paleo_choice_made_${email}`, "true");
+    localStorage.setItem(`paleo_admin_user_type_${email}`, path);
+    localStorage.setItem(`paleo_admin_choice_made_${email}`, "true");
 
     if (path === "member") {
       addNotification({
@@ -1762,6 +2035,10 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       cancelWithdrawalApplication: cancelWithdrawalApplicationAction,
       getMembershipApplicationTemplateUrl,
       getWithdrawalApplicationTemplateUrl,
+      simApproveMembershipApplication,
+      simRejectMembershipApplication,
+      simApproveWithdrawalApplication,
+      simRejectWithdrawalApplication,
       userType,
       membershipChoiceMade,
       chooseMembershipPath,

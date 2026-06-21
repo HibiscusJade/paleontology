@@ -24,6 +24,44 @@ import {
 const ITEMS_PER_PAGE = 10;
 const COLOR_MAP = CONFERENCE_STATUS_COLOR;
 
+function saveExportBlobs(blobs: Blob[], baseName: string) {
+  if (blobs.length === 1) {
+    saveAs(blobs[0], `${baseName}.zip`);
+  } else {
+    blobs.forEach((blob, i) => saveAs(blob, `${baseName}_part${i + 1}.zip`));
+    toast.info(`数据量较大，已自动拆分为 ${blobs.length} 个 ZIP 包（每包 ≤1GB）`);
+  }
+}
+
+function ExportStructurePreview({ scope }: { scope: "branch" | "conference" | "global" }) {
+  const today = new Date().toISOString().split("T")[0];
+  const root =
+    scope === "global"
+      ? `export_global_all_${today}/{学会名}/`
+      : scope === "branch"
+        ? `export_branch_{学会ID}_${today}/`
+        : `export_conference_{会议ID}_${today}/`;
+
+  return (
+    <Card className="bg-slate-50 border-dashed">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">ZIP 目录结构规范</CardTitle>
+        <CardDescription className="text-xs">
+          根目录 <code className="text-[11px]">{root}</code>，文件命名：<code className="text-[11px]">{"{姓名}_{身份}_{日期}_{流水号}.ext"}</code>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="text-xs text-muted-foreground font-mono space-y-0.5 pb-4">
+        <div>├── 学生会员/缴费凭证/</div>
+        <div>├── 学生会员/电子发票/</div>
+        <div>├── 非学生会员/…</div>
+        <div>├── 学生（非会员）/…</div>
+        <div>├── 非学生（非会员）/…</div>
+        <div>└── 汇总台账.csv</div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -339,10 +377,10 @@ function ByBranchView() {
     if (!selectedBranch) return;
     setIsExporting(true);
     try {
-      const blob = await generateExportZip({ scope: "branch", scopeId: selectedBranch });
+      const blobs = await generateExportZip({ scope: "branch", scopeId: selectedBranch });
       const branchName = ALL_SOCIETY_UNITS[selectedBranch] || selectedBranch;
-      const fileName = `export_branch_${branchName}_${new Date().toISOString().split("T")[0]}.zip`;
-      saveAs(blob, fileName);
+      const fileName = `export_branch_${branchName}_${new Date().toISOString().split("T")[0]}`;
+      saveExportBlobs(blobs, fileName);
       toast.success("导出成功");
     } catch (e) {
       toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
@@ -356,6 +394,7 @@ function ByBranchView() {
 
   return (
     <div className="space-y-4">
+      <ExportStructurePreview scope="branch" />
       <div className="flex items-center gap-4 flex-wrap">
         <label className="text-sm font-medium whitespace-nowrap">选择学会/分会：</label>
         <Select value={selectedBranch} onValueChange={setSelectedBranch}>
@@ -535,10 +574,10 @@ function ByConferenceView() {
     if (!selectedConf) return;
     setIsExporting(true);
     try {
-      const blob = await generateExportZip({ scope: "conference", scopeId: selectedConf });
+      const blobs = await generateExportZip({ scope: "conference", scopeId: selectedConf });
       const conf = allConfs.find(c => c.id === selectedConf);
-      const fileName = `export_conference_${conf?.name?.slice(0, 20) || selectedConf}_${new Date().toISOString().split("T")[0]}.zip`;
-      saveAs(blob, fileName);
+      const fileName = `export_conference_${conf?.name?.slice(0, 20) || selectedConf}_${new Date().toISOString().split("T")[0]}`;
+      saveExportBlobs(blobs, fileName);
       toast.success("导出成功");
     } catch (e) {
       toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
@@ -552,6 +591,7 @@ function ByConferenceView() {
 
   return (
     <div className="space-y-4">
+      <ExportStructurePreview scope="conference" />
       <div className="flex items-center gap-4 flex-wrap">
         <label className="text-sm font-medium whitespace-nowrap">选择会议：</label>
         <Select value={selectedConf} onValueChange={setSelectedConf}>

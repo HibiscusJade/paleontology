@@ -55,6 +55,8 @@ export default function Services() {
     membershipApplication,
     submitMembershipApplication,
     cancelMembershipApplication,
+    simApproveMembershipApplication,
+    simRejectMembershipApplication,
     getMembershipApplicationTemplateUrl,
   } = useMembership();
 
@@ -1006,6 +1008,23 @@ export default function Services() {
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800 space-y-3">
                       <p className="font-bold mb-1">⏳ 入会申请已提交</p>
                       <p className="text-yellow-700 leading-relaxed">您的入会申请书已提交，管理员将在1-3个工作日内审核。审核通过后即可进入缴费环节。</p>
+                      <div className="border-t border-yellow-200 pt-3">
+                        <p className="text-yellow-400 text-[10px] mb-2">[ 演示模式 ] 模拟管理员审核（本地联调，无需管理端）</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { simApproveMembershipApplication(); setAppFlowStep(0); }}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">check_circle</span> 模拟通过
+                          </button>
+                          <button
+                            onClick={() => simRejectMembershipApplication("申请书信息不完整")}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">cancel</span> 模拟驳回
+                          </button>
+                        </div>
+                      </div>
                       <button
                         onClick={() => { cancelMembershipApplication(); setAppFlowStep(0); setMemberAppFile(null); setMemberAppFileName(""); }}
                         className="w-full border border-red-300 text-red-600 hover:bg-red-50 rounded-lg font-bold text-xs py-2"
@@ -1025,6 +1044,23 @@ export default function Services() {
                   {membershipApplication?.applicationFileName && (
                     <p className="text-yellow-600 text-[10px]">已上传：{membershipApplication.applicationFileName}</p>
                   )}
+                  <div className="border-t border-yellow-200 pt-3">
+                    <p className="text-yellow-400 text-[10px] mb-2">[ 演示模式 ] 模拟管理员审核（本地联调，无需管理端）</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => simApproveMembershipApplication()}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">check_circle</span> 模拟通过
+                      </button>
+                      <button
+                        onClick={() => simRejectMembershipApplication("申请书信息不完整")}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center justify-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">cancel</span> 模拟驳回
+                      </button>
+                    </div>
+                  </div>
                   <button
                     onClick={() => { cancelMembershipApplication(); setAppFlowStep(0); }}
                     className="w-full border border-red-300 text-red-600 hover:bg-red-50 rounded-lg font-bold text-xs py-2"
@@ -1388,15 +1424,15 @@ export default function Services() {
             const key = `paleo_confs_${currentUser?.email || ""}`;
             const allRegs = { ...conferenceRegs, [editingReg]: updatedReg };
             localStorage.setItem(key, JSON.stringify(allRegs));
+            localStorage.setItem(key.replace(/^paleo_/, "paleo_admin_"), JSON.stringify(allRegs));
           }
         }
         setEditingReg(null);
       };
 
       const handleAbstractMockUpload = () => {
-        const today = new Date().toISOString().split('T')[0];
-        if (conf && today > (conf as any).abstractDeadline) {
-          toast.error(`摘要上传已截止（截止日期：${(conf as any).abstractDeadline}）`);
+        if (isDeadlinePassed(conf?.abstractDeadline)) {
+          toast.error(`摘要上传已截止（截止日期：${conf?.abstractDeadline}）`);
           return;
         }
         const mockName = `Abstract_${currentUser?.name || "Member"}_2026.docx`;
@@ -1412,20 +1448,9 @@ export default function Services() {
         toast.info("摘要已删除，可重新上传。");
       };
 
-      const isAbstractDeadlineExceeded = () => {
-        const today = new Date().toISOString().split('T')[0];
-        return conf && today > (conf as any).abstractDeadline;
-      };
-
-      const isAccommodationDeadlineExceeded = () => {
-        const today = new Date().toISOString().split('T')[0];
-        return conf && today > (conf as any).accommodationDeadline;
-      };
-
-      const isFieldTripDeadlineExceeded = () => {
-        const today = new Date().toISOString().split('T')[0];
-        return conf && today > (conf as any).fieldTripDeadline;
-      };
+      const isAbstractDeadlineExceeded = () => isDeadlinePassed(conf?.abstractDeadline);
+      const isAccommodationDeadlineExceeded = () => isDeadlinePassed(conf?.accommodationDeadline);
+      const isFieldTripDeadlineExceeded = () => isDeadlinePassed(conf?.fieldTripDeadline);
 
       return (
         <div className="max-w-3xl mx-auto py-12 px-6">
@@ -1437,7 +1462,7 @@ export default function Services() {
 
           <div className="bg-white border border-[#E5E1DA] rounded-xl p-8 shadow-sm">
             <div className="border-b border-slate-100 pb-4 mb-6">
-              <span className="bg-green-50 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">会议注册费已审核通过</span>
+              <span className="bg-green-50 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">报名已确认 · 可填写参会信息</span>
               <h2 className="text-lg font-bold text-[#002B49] mt-2">{conf?.title}</h2>
               <p className="text-xs text-slate-400 mt-1">请在下方填报您的具体参会形式、学术报告意向及酒店住宿代订信息。</p>
             </div>
@@ -2075,7 +2100,7 @@ export default function Services() {
                   <p className="text-xs font-bold text-slate-600 mb-1">会议通知（不盖章）</p>
                   <p className="text-[10px] text-slate-400 mb-3">查看会议通知全文</p>
                   <button
-                    onClick={() => toast.info("会议通知预览功能：展示会议基本信息、时间、地点、费用标准等（无电子章）。")}
+                    onClick={() => setNoticePreviewConfId(conf!.id)}
                     className="w-full px-3 py-1.5 border border-slate-300 text-slate-600 rounded font-bold text-xs hover:bg-white transition-colors flex items-center justify-center gap-1"
                   >
                     <span className="material-symbols-outlined text-[14px]">visibility</span> 查看通知
@@ -2256,9 +2281,6 @@ export default function Services() {
                       return null;
                     })()}
                     <div className="flex gap-2">
-                      <button onClick={() => setEditingReg(conf!.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1">
-                        <span className="material-symbols-outlined text-sm">edit_note</span> 填写参会信息
-                      </button>
                       <button onClick={() => {
                         setConfInvoice("invoice_electronic_conf.pdf");
                         submitConferenceInvoice(conf!.id, mockVoucherUrl);
@@ -2266,6 +2288,7 @@ export default function Services() {
                         <span className="material-symbols-outlined text-sm">receipt_long</span> 上传发票
                       </button>
                     </div>
+                    <p className="text-[10px] text-slate-400 text-center">缴费终审确认后可填写参会信息并下载盖章通知</p>
                     {/* 演示按钮 */}
                     <div className="border-t border-slate-100 pt-1.5">
                       <p className="text-slate-400 text-[10px] mb-1">[ 演示 ] 模拟发票终审</p>
@@ -2332,17 +2355,20 @@ export default function Services() {
 
                 {/* CONFIRMED -- 报名确认 */}
                 {(reg.status === "confirmed" || reg.status === "submitted" || reg.status === "approved_unfilled" || reg.status === "approved_invoice") && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-green-600 font-bold text-xs flex items-center gap-0.5">
                       <span className="material-symbols-outlined text-sm">check_circle</span>
                       {reg.status === "confirmed" ? "✓ 报名已确认" : "已成功报名"}
                     </span>
-                    <button
-                      onClick={() => setEditingReg(conf!.id)}
-                      className="text-xs text-[#002B49] font-bold hover:underline"
-                    >
-                      {reg.status === "confirmed" ? "查看参会信息" : "修改参会信息"}
-                    </button>
+                    {reg.status === "confirmed" && (
+                      <button
+                        onClick={() => openConferenceForm(conf!.id)}
+                        className="text-xs bg-[#002B49] text-white px-3 py-1.5 rounded font-bold hover:bg-[#001f35] flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-sm">edit_note</span>
+                        {reg.name ? "查看/修改参会信息" : "填写参会信息"}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2492,11 +2518,13 @@ export default function Services() {
       : null;
     // Filter logic: if conferenceBranchFilter is set, show only that branch's conferences;
     // otherwise show all bound-branch conferences (or all if not a member)
-    const visibleConfs = conferenceBranchFilter
-      ? conferences.filter(c => c.branchId === conferenceBranchFilter)
-      : isActiveMember
-        ? conferences.filter(c => isSocietyAccessible(boundBranches, c.branchId))
-        : conferences;
+    const visibleConfs = sortConferencesSocietyFirst(
+      conferenceBranchFilter
+        ? conferences.filter(c => c.branchId === conferenceBranchFilter)
+        : isActiveMember
+          ? conferences.filter(c => isSocietyAccessible(boundBranches, c.branchId))
+          : conferences
+    );
 
     const statusColor: Record<string, string> = {
       "演示": "bg-blue-50 text-blue-700",
@@ -2606,7 +2634,9 @@ export default function Services() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor[c.status] || "bg-slate-100 text-slate-500"}`}>{c.status}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#002B49]/8 text-[#002B49]">{c.branchName}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#002B49]/8 text-[#002B49] ${c.branchId === TOTAL_SOCIETY_ID ? "bg-[#D9C5A0]/30 text-[#715a3e]" : ""}`}>
+                        {c.branchId === TOTAL_SOCIETY_ID ? "★ " : ""}{c.branchName}
+                      </span>
                       {reg && (
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           CONFERENCE_STATUS_COLOR[reg.status] ||
@@ -2643,6 +2673,12 @@ export default function Services() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 min-w-[140px]">
+                    <button
+                      onClick={() => setSelectedConference(c.id)}
+                      className="text-[#715a3e] font-bold hover:underline flex items-center gap-0.5 text-[10px] justify-end"
+                    >
+                      会议详情 <span className="material-symbols-outlined text-sm">chevron_right</span>
+                    </button>
                     {/* Regular users need to choose membership path first */}
                     {userType === "regular" && (
                       <button
@@ -2712,15 +2748,15 @@ export default function Services() {
                     {/* 待上传发票 → 填写信息 + 上传发票 + 模拟发票审核 */}
                     {reg?.status === "invoice_pending" && (
                       <>
-                        <button
-                          onClick={() => setEditingReg(c.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold text-xs transition-colors text-center"
-                        >
-                          填写参会信息
-                        </button>
                         {reg.invoiceDeadline && (
                           <span className="text-blue-600 font-bold text-[10px] text-center">发票截止：{reg.invoiceDeadline}</span>
                         )}
+                        <button
+                          onClick={() => { setConfPaymentTarget(c.id); setConfPaymentStep(3); }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-xs transition-colors text-center"
+                        >
+                          上传发票
+                        </button>
                       </>
                     )}
                     {/* 发票逾期 */}
@@ -2758,17 +2794,23 @@ export default function Services() {
                           <span className="material-symbols-outlined text-sm">check_circle</span>报名完成
                         </span>
                         <button
+                          onClick={() => openConferenceForm(c.id)}
+                          className="text-[10px] text-[#002B49] font-bold hover:underline flex items-center gap-0.5"
+                        >
+                          <span className="material-symbols-outlined text-[12px]">edit_note</span>参会信息
+                        </button>
+                        <button
                           onClick={() => setSelectedConference(c.id)}
-                          className="text-[10px] text-strata-blue-deep font-bold hover:underline flex items-center gap-0.5"
+                          className="text-[10px] text-[#002B49] font-bold hover:underline flex items-center gap-0.5"
                         >
                           <span className="material-symbols-outlined text-[12px]">download</span>资料下载
                         </button>
                       </div>
                     )}
                     {/* 旧状态兼容 */}
-                    {reg?.status === "active" && !reg.conferenceForm && (
+                    {reg?.status === "active" && !reg.conferenceForm && canAccessConferenceForm(c.id) && (
                       <button
-                        onClick={() => setEditingReg(c.id)}
+                        onClick={() => openConferenceForm(c.id)}
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold text-xs transition-colors text-center"
                       >
                         填写参会信息
@@ -2868,8 +2910,8 @@ export default function Services() {
           );
         })()}
 
-        {/* Inline conference form dialog (simplified quick-submit) */}
-        {editingReg && (() => {
+        {/* Inline conference form dialog — 仅 legacy active 状态快捷入口 */}
+        {editingReg && !canAccessConferenceForm(editingReg) && (() => {
           const c = conferences.find(x => x.id === editingReg);
           if (!c) return null;
           return (
@@ -3485,13 +3527,67 @@ export default function Services() {
           {activeTab === "main" && renderMainPortal()}
           {activeTab === "branches" && renderBranches()}
           {activeTab === "member" && renderMemberServices()}
-          {activeTab === "conference" && renderConferenceList()}
+          {activeTab === "conference" && (selectedConference || editingReg ? renderConferenceServices() : renderConferenceList())}
           {activeTab === "science" && renderScienceComm()}
           {activeTab === "international" && renderInternational()}
           {activeTab === "awards" && renderAwards()}
         </div>
       </div>
       <LoginJoinDialog open={dialogOpen} onOpenChange={setDialogOpen} initialTab={dialogTab} />
+
+      {/* 未盖章会议通知预览 */}
+      {noticePreviewConfId && (() => {
+        const previewConf = conferences.find(c => c.id === noticePreviewConfId);
+        if (!previewConf) return null;
+        const feeConfig = getConferenceFeeConfig(previewConf.id);
+        const publicUrl = getConferenceFileUrl(previewConf.id, "publicNotice");
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setNoticePreviewConfId(null)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-[#E5E1DA] flex items-center justify-between sticky top-0 bg-white">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">未盖章通知预览</span>
+                  <h3 className="font-bold text-[#002B49] text-base mt-1">{previewConf.title}</h3>
+                </div>
+                <button onClick={() => setNoticePreviewConfId(null)} className="text-slate-400 hover:text-slate-600">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div className="p-6 space-y-4 text-xs text-slate-600">
+                {publicUrl ? (
+                  <iframe src={publicUrl} title="会议通知" className="w-full h-96 border border-[#E5E1DA] rounded-lg" />
+                ) : (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                      <span className="material-symbols-outlined text-amber-600 text-sm">info</span>
+                      <p className="text-amber-800">本通知未加盖学会电子章，仅供查阅。缴费终审确认后可下载盖章版 PDF。</p>
+                    </div>
+                    <p><strong>主办：</strong>{previewConf.branchName}</p>
+                    <p><strong>时间：</strong>{previewConf.time}</p>
+                    <p><strong>地点：</strong>{previewConf.location}</p>
+                    <p><strong>会议简介：</strong>{previewConf.desc}</p>
+                    <div className="bg-slate-50 border border-[#E5E1DA] rounded-lg p-4 space-y-1">
+                      <p className="font-bold text-[#002B49] mb-2">四类注册费标准</p>
+                      {([
+                        ["student_member", feeConfig.studentMember],
+                        ["non_student_member", feeConfig.nonStudentMember],
+                        ["student_non_member", feeConfig.studentNonMember],
+                        ["non_student_non_member", feeConfig.nonStudentNonMember],
+                      ] as [ConferenceFeeType, number][]).map(([key, val]) => (
+                        <div key={key} className="flex justify-between">
+                          <span>{CONFERENCE_FEE_TYPE_LABEL[key]}</span>
+                          <span className="font-bold">{val > 0 ? `¥${val}` : "--"}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-slate-500">缴费截止：{previewConf.feeDeadline} · 摘要截止：{previewConf.abstractDeadline}</p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </PartyLayout>
   );
 }

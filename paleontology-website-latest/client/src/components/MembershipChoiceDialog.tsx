@@ -50,9 +50,9 @@ export default function MembershipChoiceDialog({ open }: MembershipChoiceDialogP
               <h3 className="text-base font-bold text-[#002B49] mb-2">成为正式会员</h3>
               <p className="text-2xl font-bold text-[#002B49] mb-1">¥{SOCIETY_FEE}<span className="text-xs font-normal text-slate-500">/年</span></p>
               <ul className="text-xs text-slate-600 space-y-1.5 mb-5 text-left w-full">
-                <li>· 享受会员价参会</li>
-                <li>· 需完成缴费与身份验证</li>
-                <li>· 有效期一年</li>
+                <li>· 享受学生会员 / 非学生会员优惠价参会</li>
+                <li>· 须提交入会申请书并经审核通过</li>
+                <li>· 需完成缴费与身份验证，有效期一年</li>
               </ul>
               <button
                 onClick={handleChooseMember}
@@ -67,9 +67,9 @@ export default function MembershipChoiceDialog({ open }: MembershipChoiceDialogP
               <h3 className="text-base font-bold text-[#002B49] mb-2">作为非会员继续</h3>
               <p className="text-sm font-bold text-slate-400 mb-1">免费</p>
               <ul className="text-xs text-slate-600 space-y-1.5 mb-5 text-left w-full">
-                <li>· 按非会员价参会</li>
-                <li>· 无需缴费</li>
-                <li>· 可直接绑定分会与报名</li>
+                <li>· 按学生（非会员）/ 非学生（非会员）价参会</li>
+                <li>· 非学生含教师、嘉宾等身份</li>
+                <li>· 无需缴费，可直接绑定分会与报名</li>
               </ul>
               <button
                 onClick={handleChooseNonMember}

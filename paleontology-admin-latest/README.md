@@ -227,15 +227,56 @@ pnpm build:singlefile
 
 ---
 
+## 三级统计字段（Phase 3 / MRD 对齐）
+
+所有会议相关数字均通过 `collectConferenceAttendees` 从 `paleo_admin_confs_*` 实收聚合，**禁止**用 `registrations` 字段估算。
+
+| 层级 | 主要指标 |
+|------|----------|
+| **全局** | 总注册/会员/非会员（含学生分层）、会员费累计（学生/非学生笔数金额）、12 学会会议费分项 |
+| **学会/分会** | 累计确认参会人数、四类人群人数、四类会议费笔数/金额 |
+| **单次会议** | 四类费用笔数/金额、确认参会总人数、口头/展板报告、住宿（总房间/男单/男双/女单/女双）、野外（会前/会中/会后 × 总/男/女） |
+
+Dashboard「实收缴费趋势」来自近 12 个月已确认会员费/会议费笔数。
+
+## ZIP 导出目录规范
+
+```
+export_{scope}_{id}_{date}/
+├── 学生会员/缴费凭证/、电子发票/
+├── 非学生会员/…
+├── 学生（非会员）/…
+├── 非学生（非会员）/…
+└── 汇总台账.csv
+```
+
+- 全局导出：`export_global_all_{date}/{学会名}/…`
+- 单文件命名：`{姓名}_{身份}_{日期}_{流水号}.ext`
+- 超过 1GB 自动拆分为多个 ZIP 包
+
+## 与用户端 localStorage 联调
+
+管理端审核/导出读取 `paleo_admin_*` key；审核写回时同步 `paleo_*` key（与用户端 Phase 2 双写约定一致）：
+
+| 管理端 | 用户端 |
+|--------|--------|
+| `paleo_admin_membership_application_{email}` | `paleo_membership_application_{email}` |
+| `paleo_admin_withdrawal_application_{email}` | `paleo_withdrawal_application_{email}` |
+| `paleo_admin_society_membership_{email}` | `paleo_society_membership_{email}` |
+| `paleo_admin_confs_{email}` | `paleo_confs_{email}` |
+
+入会/退会/凭证/发票审核均双向同步；用户端通过 `storage` 事件 + 轮询刷新状态。
+
+---
+
 ## 路线图（已完成阶段）
 
 - **Phase 0** — 数据模型更新（4 档费用、用户身份、住宿/考察路线）
 - **Phase 1** — 分会管理员数据隔离、4 档会议费用配置
 - **Phase 2** — 文件上传管理（盖章通知、摘要模板）
-- **Phase 3** — 三级统计（全局 / 分会 / 会议）
-- **Phase 4** — 住宿与考察路线管理
-- **Phase 5** — 会议参会人详情与 ZIP 导出
-- **Phase 6** — 会员入会/退会申请审核流程
+- **Phase 3** — 三级统计实收聚合、Dashboard 缴费趋势、ZIP 分类导出、入会/退会审核联调、分会会议 Tab
+- **Phase 4** — 生产栈对齐（Vue 子模块 + 后端 API）
+- **Phase 5** — 文档同步与验收
 
 ---
 

@@ -293,8 +293,8 @@ export default function LoginJoinDialog({ open, onOpenChange, initialTab = "logi
                   <div className="flex flex-wrap gap-2">
                     {[
                       { value: "学生", label: "学生" },
-                      { value: "教师", label: "老师" },
-                      { value: "嘉宾", label: "其他" }
+                      { value: "教师", label: "教师 / 科研人员（非学生）" },
+                      { value: "嘉宾", label: "嘉宾 / 其他（非学生）" }
                     ].map((opt) => (
                       <button
                         key={opt.value}

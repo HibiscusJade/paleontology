@@ -629,7 +629,7 @@ export default function ConferenceManagement() {
                 </div>
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Users className="h-3 w-3" />
-                  <span>报名: {conf.registrations} 人</span>
+                  <span>确认参会: {conf.registrations} 人</span>
                 </div>
                 <div className="flex items-center justify-between text-sm pt-2">
                   <div className="text-muted-foreground text-xs space-y-0.5">

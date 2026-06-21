@@ -1,5 +1,6 @@
 import { useState } from "react";
 import PartyLayout from "../components/PartyLayout";
+import { Link } from "wouter";
 
 // 11 专业分会数据
 const branchesData = [
@@ -223,14 +224,22 @@ export default function Branches() {
                           <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">location_on</span>江苏 · 南京</span>
                           <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">group</span>11 个下属分会</span>
                         </div>
-                        <a
-                          href="http://www.chinapsc.cn/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs font-bold text-[#715a3e] hover:text-[#002B49] transition-colors border border-[#D9C5A0] px-3 py-1.5 rounded-lg hover:bg-[#D9C5A0]/10"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">open_in_new</span>访问总学会官网
-                        </a>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <a
+                            href="http://www.chinapsc.cn/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs font-bold text-[#715a3e] hover:text-[#002B49] transition-colors border border-[#D9C5A0] px-3 py-1.5 rounded-lg hover:bg-[#D9C5A0]/10"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">open_in_new</span>访问总学会官网
+                          </a>
+                          <Link
+                            href="/services?tab=conference&branch=zgswxh"
+                            className="flex items-center gap-1 text-xs font-bold text-white bg-[#002B49] hover:bg-[#001f35] transition-colors px-3 py-1.5 rounded-lg"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">event</span>查看总学会会议
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </div>

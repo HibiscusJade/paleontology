@@ -95,7 +95,7 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
     { name: "非学生(非会员)", value: globalStats.nonStudentNonMembers, fill: FEE_TYPE_COLORS.non_student_non_member },
   ].filter(d => d.value > 0);
 
-  // Society attendee heat table: per society conference count + registrations
+  // Society attendee heat table: per society conference count + confirmed attendees
   const societyAttendeeData = Object.entries(ALL_SOCIETY_UNITS)
     .map(([id, name]) => {
       const socConfs = allConfs.filter(c => c.branchId === id);
@@ -107,6 +107,10 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
       };
     })
     .filter(d => d.confCount > 0 || d.totalRegs > 0);
+
+  const paymentTrendData = stats.paymentTrend.length > 0
+    ? stats.paymentTrend
+    : [{ month: new Date().toISOString().slice(0, 7), count: 0 }];
 
   return (
     <div className="space-y-6">
@@ -290,7 +294,7 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">各学会参会人数概览</CardTitle>
-              <CardDescription>各学会发布会议数与报名人数</CardDescription>
+              <CardDescription>各学会发布会议数与确认参会人数（实收聚合）</CardDescription>
             </CardHeader>
             <CardContent>
               {societyAttendeeData.length > 0 ? (
@@ -299,7 +303,7 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
                     <TableRow>
                       <TableHead>学会</TableHead>
                       <TableHead className="text-right">会议数</TableHead>
-                      <TableHead className="text-right">报名人数</TableHead>
+                      <TableHead className="text-right">确认参会</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -320,50 +324,82 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
         </motion.div>
       </div>
 
-      {/* Row 5: Recent reviews */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.65, duration: 0.4 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">最近审核记录</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats.recentReviews && stats.recentReviews.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>用户</TableHead>
-                    <TableHead>类型</TableHead>
-                    <TableHead>金额</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>提交时间</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stats.recentReviews.slice(0, 5).map((r: ReviewItem) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.userName || r.userEmail}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {r.type === "society_fee" ? "会员费" : "会议费"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>¥{r.amount}</TableCell>
-                      <TableCell><ReviewStatusBadge status={r.status} /></TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{r.submitTime}</TableCell>
+      {/* Row 5: Payment trend + Recent reviews */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.62, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" /> 实收缴费趋势
+              </CardTitle>
+              <CardDescription>近 12 个月会员费/会议费确认笔数（实收聚合）</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {paymentTrendData.some(d => d.count > 0) ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={paymentTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E1DA" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="确认笔数" fill="#002B49" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">暂无实收缴费数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">最近审核记录</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats.recentReviews && stats.recentReviews.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>用户</TableHead>
+                      <TableHead>类型</TableHead>
+                      <TableHead>金额</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>提交时间</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="flex items-center justify-center h-32 text-muted-foreground">暂无数据</div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+                  </TableHeader>
+                  <TableBody>
+                    {stats.recentReviews.slice(0, 5).map((r: ReviewItem) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">{r.userName || r.userEmail}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {r.type === "society_fee" ? "会员费" : "会议费"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>¥{r.amount}</TableCell>
+                        <TableCell><ReviewStatusBadge status={r.status} /></TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{r.submitTime}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">暂无数据</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
     </div>
   );
 }
@@ -385,7 +421,7 @@ function BranchAdminView() {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard title="分会会议" value={stats.branchConferences} icon={Calendar} delay={0} />
-        <StatCard title="报名人数" value={stats.branchRegistrations} icon={Users} delay={0.1} />
+        <StatCard title="确认参会" value={stats.branchRegistrations} icon={Users} delay={0.1} />
         <StatCard title="分会用户" value={stats.branchUserCount} icon={LayoutDashboard} delay={0.2} />
       </div>
 

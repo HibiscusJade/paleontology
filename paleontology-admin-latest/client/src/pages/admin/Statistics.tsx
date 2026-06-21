@@ -38,6 +38,15 @@ const FEE_TYPE_CHART_COLORS: Record<string, string> = {
 
 type StatLevel = "global" | "society" | "conference";
 
+function saveExportBlobs(blobs: Blob[], baseName: string) {
+  if (blobs.length === 1) {
+    saveAs(blobs[0], `${baseName}.zip`);
+  } else {
+    blobs.forEach((blob, i) => saveAs(blob, `${baseName}_part${i + 1}.zip`));
+    toast.info(`数据量较大，已自动拆分为 ${blobs.length} 个 ZIP 包（每包 ≤1GB）`);
+  }
+}
+
 // ============================================================================
 // SHARED COMPONENTS
 // ============================================================================
@@ -174,9 +183,9 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const blob = await generateExportZip({ scope: "global", scopeId: "all" });
-      const fileName = `export_global_all_${new Date().toISOString().split("T")[0]}.zip`;
-      saveAs(blob, fileName);
+      const blobs = await generateExportZip({ scope: "global", scopeId: "all" });
+      const fileName = `export_global_all_${new Date().toISOString().split("T")[0]}`;
+      saveExportBlobs(blobs, fileName);
       toast.success("全局导出成功");
     } catch (e) {
       toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
@@ -343,7 +352,7 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
                   <TableHead>非学生会员价</TableHead>
                   <TableHead>学生非会员价</TableHead>
                   <TableHead>非学生非会员价</TableHead>
-                  <TableHead>报名人数</TableHead>
+                  <TableHead>确认参会</TableHead>
                   <TableHead>状态</TableHead>
                 </TableRow>
               </TableHeader>
@@ -408,10 +417,10 @@ function SocietyStatistics() {
     if (!selectedSociety) return;
     setIsExporting(true);
     try {
-      const blob = await generateExportZip({ scope: "branch", scopeId: selectedSociety });
+      const blobs = await generateExportZip({ scope: "branch", scopeId: selectedSociety });
       const societyName = ALL_SOCIETY_UNITS[selectedSociety] || selectedSociety;
-      const fileName = `export_branch_${societyName.slice(0, 20)}_${new Date().toISOString().split("T")[0]}.zip`;
-      saveAs(blob, fileName);
+      const fileName = `export_branch_${societyName.slice(0, 20)}_${new Date().toISOString().split("T")[0]}`;
+      saveExportBlobs(blobs, fileName);
       toast.success("导出成功");
     } catch (e) {
       toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
@@ -514,7 +523,7 @@ function SocietyStatistics() {
                       <TableHead>会议名称</TableHead>
                       <TableHead>日期</TableHead>
                       <TableHead>地点</TableHead>
-                      <TableHead>报名人数</TableHead>
+                      <TableHead>确认参会</TableHead>
                       <TableHead>状态</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -620,10 +629,10 @@ function ConferenceStatistics() {
     if (!selectedConf) return;
     setIsExporting(true);
     try {
-      const blob = await generateExportZip({ scope: "conference", scopeId: selectedConf });
+      const blobs = await generateExportZip({ scope: "conference", scopeId: selectedConf });
       const conf = allConfs.find(c => c.id === selectedConf);
-      const fileName = `export_conference_${conf?.name?.slice(0, 20) || selectedConf}_${new Date().toISOString().split("T")[0]}.zip`;
-      saveAs(blob, fileName);
+      const fileName = `export_conference_${conf?.name?.slice(0, 20) || selectedConf}_${new Date().toISOString().split("T")[0]}`;
+      saveExportBlobs(blobs, fileName);
       toast.success("导出成功");
     } catch (e) {
       toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
@@ -1004,9 +1013,6 @@ function ConferenceStatistics() {
                     <span className="text-muted-foreground">展板报告</span>
                     <span className="text-lg font-semibold">{stats.posterReports || 0}</span>
                   </div>
-                  {stats.totalReports === 0 && (
-                    <p className="text-xs text-muted-foreground italic">数据将在 Phase 4 中完善</p>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1040,9 +1046,6 @@ function ConferenceStatistics() {
                     <span className="text-muted-foreground">{ACCOMMODATION_TYPE_LABEL.female_double}</span>
                     <span className="text-lg font-semibold">{stats.accommodation.femaleDouble || 0}</span>
                   </div>
-                  {stats.accommodation.totalRooms === 0 && (
-                    <p className="text-xs text-muted-foreground italic">数据将在 Phase 4 中完善</p>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1072,9 +1075,6 @@ function ConferenceStatistics() {
                       </div>
                     );
                   })}
-                  {!stats.fieldTrips.pre.total && !stats.fieldTrips.during.total && !stats.fieldTrips.post.total && (
-                    <p className="text-xs text-muted-foreground italic">数据将在 Phase 4 中完善</p>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1097,6 +1097,7 @@ function ConferenceStatistics() {
 
 function BranchAdminStatisticsView() {
   const { adminBranchId, getSocietyStats, getAllConferences } = useAdmin();
+  const [level, setLevel] = useState<"society" | "conference">("society");
   const branchId = adminBranchId || "";
   const stats = getSocietyStats(branchId);
   const allConfs = getAllConferences();
@@ -1114,9 +1115,16 @@ function BranchAdminStatisticsView() {
 
   return (
     <div className="space-y-6">
+      <Tabs value={level} onValueChange={(v) => setLevel(v as "society" | "conference")}>
+        <TabsList>
+          <TabsTrigger value="society">学会累计</TabsTrigger>
+          <TabsTrigger value="conference">单次会议</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="society" className="mt-4 space-y-6">
       <div>
         <h2 className="text-lg font-bold text-strata-blue-deep">{ALL_SOCIETY_UNITS[branchId] || branchId} - 数据统计</h2>
-        <p className="text-sm text-muted-foreground">分会累计统计与会议概览</p>
+        <p className="text-sm text-muted-foreground">分会累计统计与会议概览（基于实收确认参会记录）</p>
       </div>
 
       {/* Summary cards */}
@@ -1162,7 +1170,7 @@ function BranchAdminStatisticsView() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">分会会议列表</CardTitle>
-          <CardDescription>各会议报名人数</CardDescription>
+          <CardDescription>各会议确认参会人数（实收聚合）</CardDescription>
         </CardHeader>
         <CardContent>
           {branchConfs.length > 0 ? (
@@ -1172,7 +1180,7 @@ function BranchAdminStatisticsView() {
                   <TableHead>会议名称</TableHead>
                   <TableHead>日期</TableHead>
                   <TableHead>地点</TableHead>
-                  <TableHead>报名人数</TableHead>
+                  <TableHead>确认参会</TableHead>
                   <TableHead>状态</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1199,6 +1207,12 @@ function BranchAdminStatisticsView() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="conference" className="mt-4">
+          <ConferenceStatistics />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

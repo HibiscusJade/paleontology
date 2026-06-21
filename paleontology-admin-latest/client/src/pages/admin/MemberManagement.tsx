@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Filter, Eye, UserPlus, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -61,6 +62,45 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function ApplicationPreviewDialog({
+  open,
+  onOpenChange,
+  title,
+  fileUrl,
+  fileName,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  fileUrl: string;
+  fileName?: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        {fileUrl ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{fileName || "申请书"}</p>
+            {fileUrl.startsWith("data:application/pdf") || fileUrl.endsWith(".pdf") ? (
+              <iframe src={fileUrl} title={fileName} className="w-full h-[60vh] border rounded" />
+            ) : (
+              <img src={fileUrl} alt={fileName} className="max-w-full rounded border object-contain" />
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <a href={fileUrl} download={fileName} target="_blank" rel="noopener noreferrer">下载原件</a>
+            </Button>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">暂无文件</p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MemberDetailSheet({
   open,
   onOpenChange,
@@ -72,6 +112,7 @@ function MemberDetailSheet({
 }) {
   const { getMemberDetail } = useAdmin();
   const detail: MemberDetail | null = email ? getMemberDetail(email) : null;
+  const [preview, setPreview] = useState<{ title: string; url: string; name?: string } | null>(null);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -111,9 +152,13 @@ function MemberDetailSheet({
                 {detail.membershipAppFileUrl && (
                   <div className="col-span-2">
                     <span className="text-muted-foreground">入会申请书：</span>
-                    <a href={detail.membershipAppFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-blue-600 text-xs"
+                      onClick={() => setPreview({ title: "入会申请书预览", url: detail.membershipAppFileUrl!, name: detail.membershipAppFileName })}
+                    >
                       {detail.membershipAppFileName || "查看文件"}
-                    </a>
+                    </Button>
                     {detail.membershipAppStatus && (
                       <span className="ml-2"><StatusBadge status={detail.membershipAppStatus} /></span>
                     )}
@@ -125,9 +170,13 @@ function MemberDetailSheet({
                 {detail.withdrawalAppFileUrl && (
                   <div className="col-span-2">
                     <span className="text-muted-foreground">退会申请书：</span>
-                    <a href={detail.withdrawalAppFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-blue-600 text-xs"
+                      onClick={() => setPreview({ title: "退会申请书预览", url: detail.withdrawalAppFileUrl!, name: detail.withdrawalAppFileName })}
+                    >
                       {detail.withdrawalAppFileName || "查看文件"}
-                    </a>
+                    </Button>
                     {detail.withdrawalAppStatus && (
                       <span className="ml-2"><StatusBadge status={detail.withdrawalAppStatus} /></span>
                     )}
@@ -180,6 +229,13 @@ function MemberDetailSheet({
           </div>
         )}
       </SheetContent>
+      <ApplicationPreviewDialog
+        open={!!preview}
+        onOpenChange={(o) => { if (!o) setPreview(null); }}
+        title={preview?.title || ""}
+        fileUrl={preview?.url || ""}
+        fileName={preview?.name}
+      />
     </Sheet>
   );
 }

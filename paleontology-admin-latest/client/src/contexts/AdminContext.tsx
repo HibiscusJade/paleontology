@@ -389,7 +389,7 @@ interface AdminContextType {
   getAllPaymentRecords(): ReviewItem[];
   // Phase 5: 参会人员详情 & 导出
   getConferenceAttendees(confId: string): ConferenceAttendee[];
-  generateExportZip(options: ExportOptions): Promise<Blob>;
+  generateExportZip(options: ExportOptions): Promise<Blob[]>;
   // Phase 6: 入会/退会审核
   pendingMembershipApps: MembershipAppRecord[];
   pendingWithdrawalApps: WithdrawalAppRecord[];
@@ -829,6 +829,101 @@ function collectConferenceAttendees(confId: string, conf?: ConferenceRecord): Co
   }
 
   return attendees;
+}
+
+function countConfirmedAttendees(confId: string, conf?: ConferenceRecord): number {
+  return collectConferenceAttendees(confId, conf).filter(a =>
+    REVENUE_CONFERENCE_STATUSES.has(a.paymentStatus)
+  ).length;
+}
+
+/** 管理端审核结果同步至用户端 localStorage（paleo_admin_* → paleo_*） */
+function syncAdminToUserStorage(adminKey: string): void {
+  const stored = localStorage.getItem(adminKey);
+  if (!stored) return;
+  const userKey = adminKey.replace("paleo_admin_", "paleo_");
+  localStorage.setItem(userKey, stored);
+}
+
+/** 导出文件名规范：{姓名}_{身份}_{日期}_{流水号} */
+function formatExportFileName(
+  userName: string,
+  identityLabel: string,
+  date: string,
+  serialId: string,
+  ext: string,
+): string {
+  const safe = (s: string) => s.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
+  return `${safe(userName)}_${safe(identityLabel)}_${safe(date.replace(/[:\s]/g, "-"))}_${safe(serialId)}.${ext}`;
+}
+
+function estimateZipEntrySize(content: string, isBase64?: boolean): number {
+  if (isBase64 && content.startsWith("data:")) {
+    const b64 = content.split(",")[1] || "";
+    return Math.ceil(b64.length * 0.75);
+  }
+  return new Blob([content]).size;
+}
+
+const ZIP_MAX_BYTES = 1024 * 1024 * 1024;
+
+class SplitZipBuilder {
+  private parts: JSZip[] = [new JSZip()];
+  private partSizes: number[] = [0];
+
+  file(path: string, content: string, options?: { base64?: boolean }): void {
+    const size = estimateZipEntrySize(content, options?.base64);
+    const idx = this.partSizes.length - 1;
+    if (this.partSizes[idx] + size > ZIP_MAX_BYTES && this.partSizes[idx] > 0) {
+      this.parts.push(new JSZip());
+      this.partSizes.push(0);
+    }
+    const targetIdx = this.partSizes.length - 1;
+    this.parts[targetIdx].file(path, content, options);
+    this.partSizes[targetIdx] += size;
+  }
+
+  async generateAll(): Promise<Blob[]> {
+    return Promise.all(this.parts.map(p => p.generateAsync({ type: "blob" })));
+  }
+}
+
+function buildPaymentTrend(): { month: string; count: number }[] {
+  const monthCounts: Record<string, number> = {};
+  const allUsers: { email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+
+  const addPayment = (dateStr: string | undefined) => {
+    if (!dateStr || dateStr.length < 7) return;
+    const month = dateStr.slice(0, 7);
+    monthCounts[month] = (monthCounts[month] || 0) + 1;
+  };
+
+  for (const u of allUsers) {
+    const memStored = localStorage.getItem(`paleo_admin_society_membership_${u.email}`);
+    if (memStored) {
+      const membership = JSON.parse(memStored);
+      for (const h of membership.history || []) {
+        if (MEMBERSHIP_REVENUE_STATUSES.has(h.status)) {
+          addPayment(h.auditTime || h.submitTime);
+        }
+      }
+    }
+    const confsStored = localStorage.getItem(`paleo_admin_confs_${u.email}`);
+    if (confsStored) {
+      const confRegs = JSON.parse(confsStored);
+      for (const confId of Object.keys(confRegs)) {
+        const reg = confRegs[confId];
+        if (REVENUE_CONFERENCE_STATUSES.has(reg.status)) {
+          addPayment(reg.invoiceAuditTime || reg.voucherAuditTime || reg.submitTime);
+        }
+      }
+    }
+  }
+
+  return Object.entries(monthCounts)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([month, count]) => ({ month, count }));
 }
 
 // ============================================================================
@@ -1686,6 +1781,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.status = MEMBERSHIP_STATUS.INVOICE_PENDING;
         membership.invoiceDeadline = addWorkdays(new Date().toISOString().split("T")[0], 7);
         localStorage.setItem(key, JSON.stringify(membership));
+        syncAdminToUserStorage(key);
       } else if (confId) {
         const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
@@ -1696,6 +1792,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           confRegs[confId].voucherAuditTime = new Date().toISOString();
           confRegs[confId].invoiceDeadline = addWorkdays(new Date().toISOString().split("T")[0], 7);
           localStorage.setItem(key, JSON.stringify(confRegs));
+          syncAdminToUserStorage(key);
         }
       }
       // Log audit
@@ -1733,6 +1830,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.status = MEMBERSHIP_STATUS.VOUCHER_REJECTED;
         membership.voucherRejectReason = reason;
         localStorage.setItem(key, JSON.stringify(membership));
+        syncAdminToUserStorage(key);
       } else if (confId) {
         const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
@@ -1742,6 +1840,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           confRegs[confId].status = CONFERENCE_STATUS.VOUCHER_REJECTED;
           confRegs[confId].voucherRejectReason = reason;
           localStorage.setItem(key, JSON.stringify(confRegs));
+          syncAdminToUserStorage(key);
         }
       }
       addNotification({
@@ -1765,6 +1864,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.status = MEMBERSHIP_STATUS.ACTIVE;
         membership.expiryDate = new Date(new Date().getFullYear(), 11, 31).toISOString().split("T")[0];
         localStorage.setItem(key, JSON.stringify(membership));
+        syncAdminToUserStorage(key);
       } else if (confId) {
         const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
@@ -1774,6 +1874,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           confRegs[confId].status = CONFERENCE_STATUS.CONFIRMED;
           confRegs[confId].invoiceAuditTime = new Date().toISOString();
           localStorage.setItem(key, JSON.stringify(confRegs));
+          syncAdminToUserStorage(key);
         }
       }
       addNotification({
@@ -1797,6 +1898,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.status = MEMBERSHIP_STATUS.INVOICE_REJECTED;
         membership.invoiceRejectReason = reason;
         localStorage.setItem(key, JSON.stringify(membership));
+        syncAdminToUserStorage(key);
       } else if (confId) {
         const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
@@ -1806,6 +1908,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           confRegs[confId].status = CONFERENCE_STATUS.INVOICE_REJECTED;
           confRegs[confId].invoiceRejectReason = reason;
           localStorage.setItem(key, JSON.stringify(confRegs));
+          syncAdminToUserStorage(key);
         }
       }
       addNotification({
@@ -1881,6 +1984,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         membership.status = MEMBERSHIP_STATUS.INVOICE_PENDING;
         membership.invoiceExtendedDeadline = newDeadline;
         localStorage.setItem(key, JSON.stringify(membership));
+        syncAdminToUserStorage(key);
       } else if (confId) {
         const key = `paleo_admin_confs_${targetEmail}`;
         const stored = localStorage.getItem(key);
@@ -1890,6 +1994,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           confRegs[confId].status = CONFERENCE_STATUS.INVOICE_PENDING;
           confRegs[confId].invoiceExtendedDeadline = newDeadline;
           localStorage.setItem(key, JSON.stringify(confRegs));
+          syncAdminToUserStorage(key);
         }
       }
       addNotification({
@@ -2023,18 +2128,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const confs = adminRole === "branch_admin" && adminBranchId
       ? rawConfs.filter(c => c.branchId === adminBranchId)
       : rawConfs;
-    const allUsers: { email: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
-    return confs.map((c: ConferenceRecord) => {
-      let count = 0;
-      for (const u of allUsers) {
-        const confsKey = `paleo_admin_confs_${u.email}`;
-        const storedConfs = localStorage.getItem(confsKey);
-        if (!storedConfs) continue;
-        const regs = JSON.parse(storedConfs);
-        if (regs[c.id]) count++;
-      }
-      return { ...c, registrations: count };
-    });
+    return confs.map((c: ConferenceRecord) => ({
+      ...c,
+      registrations: countConfirmedAttendees(c.id, c),
+    }));
   }, [adminRole, adminBranchId]);
 
   const getBranchConferences = useCallback(
@@ -2124,7 +2221,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       activeConferences: confs.filter(c => c.status === "published").length,
       recentReviews: [...vouchers, ...invoices].slice(0, 5),
       branchMemberCounts: branchCounts,
-      paymentTrend: [],
+      paymentTrend: buildPaymentTrend(),
     };
   }, [getAllMembers, buildReviewQueues, getAllConferences, adminRole, adminBranchId]);
 
@@ -2132,12 +2229,38 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const confs = getAllConferences().filter(c => c.branchId === branchId);
     const members = getAllMembers().filter(m => m.boundBranches.includes(branchId));
     const { vouchers } = buildReviewQueues();
+    const branchConfIds = new Set(confs.map(c => c.id));
+
+    let branchRegistrations = 0;
+    const recentRegistrations: { userName: string; conferenceName: string; time: string }[] = [];
+
+    for (const conf of confs) {
+      const attendees = collectConferenceAttendees(conf.id, conf).filter(a =>
+        REVENUE_CONFERENCE_STATUSES.has(a.paymentStatus)
+      );
+      branchRegistrations += attendees.length;
+      for (const a of attendees) {
+        recentRegistrations.push({
+          userName: a.name,
+          conferenceName: conf.name,
+          time: a.paymentStatus,
+        });
+      }
+    }
+
+    const branchPendingReviews = vouchers.filter(v => {
+      if (v.type === "conference_fee" && v.confId) {
+        return branchConfIds.has(v.confId);
+      }
+      return false;
+    }).length;
+
     return {
       branchConferences: confs.length,
-      branchRegistrations: confs.reduce((sum, c) => sum + c.registrations, 0),
-      branchPendingReviews: vouchers.length,
+      branchRegistrations,
+      branchPendingReviews,
       branchUserCount: members.length,
-      recentRegistrations: [],
+      recentRegistrations: recentRegistrations.slice(0, 10),
     };
   }, [getAllConferences, getAllMembers, buildReviewQueues]);
 
@@ -2431,8 +2554,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return name.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_");
   };
 
-  const generateExportZip = useCallback(async (options: ExportOptions): Promise<Blob> => {
-    const zip = new JSZip();
+  const generateExportZip = useCallback(async (options: ExportOptions): Promise<Blob[]> => {
+    const builder = new SplitZipBuilder();
     const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string }[] =
       JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
     const confs = getAllConferences();
@@ -2449,6 +2572,25 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       : categories;
 
     const today = new Date().toISOString().split("T")[0];
+
+    const getExt = (url: string) => {
+      if (url.startsWith("data:")) {
+        const mime = url.split(";")[0].split(":")[1] || "";
+        if (mime.includes("pdf")) return "pdf";
+        if (mime.includes("png")) return "png";
+        return "jpg";
+      }
+      return url.split(".").pop()?.split("?")[0] || "jpg";
+    };
+
+    const resolveUserFeeType = (u: { role?: string; email: string }): ConferenceFeeType => {
+      const userType = localStorage.getItem(`paleo_admin_user_type_${u.email}`) || "regular";
+      const isStudent = u.role === "学生";
+      if (userType === "member") {
+        return isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
+      }
+      return isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
+    };
 
     const branchScopes: { scopeId: string; rootFolder: string }[] =
       options.scope === "global"
@@ -2469,34 +2611,28 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const invoiceFolder = `${rootFolder}/${cat.folderName}/电子发票`;
 
         for (const u of allUsers) {
-          const typeKey = `paleo_admin_user_type_${u.email}`;
-          const userType = localStorage.getItem(typeKey) || "regular";
-          const isStudent = u.role === "学生";
-          let userFeeType: ConferenceFeeType;
-          if (userType === "member") {
-            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
-          } else {
-            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
-          }
+          const userFeeType = resolveUserFeeType(u);
           if (userFeeType !== cat.feeType) continue;
-
           const userName = u.name || u.email;
+          const identityLabel = CONFERENCE_FEE_TYPE_LABEL[cat.feeType];
 
           const membershipKey = `paleo_admin_society_membership_${u.email}`;
           const storedMembership = localStorage.getItem(membershipKey);
           if (storedMembership) {
             const membership = JSON.parse(storedMembership);
-            const userBoundKey = `paleo_admin_bound_branches_${u.email}`;
-            const boundBranches: string[] = JSON.parse(localStorage.getItem(userBoundKey) || "[]");
+            const boundBranches: string[] = JSON.parse(localStorage.getItem(`paleo_admin_bound_branches_${u.email}`) || "[]");
             if (boundBranches.includes(branchId)) {
               for (const h of (membership.history || [])) {
+                const date = h.submitTime?.slice(0, 10) || today;
                 if (h.voucherUrl) {
-                  const ext = h.voucherUrl.split(".").pop() || "jpg";
-                  zip.file(`${voucherFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${h.submitTime?.replace(/[:\s]/g, "-") || today}_${h.id}.${ext}`, h.voucherUrl, { base64: h.voucherUrl.startsWith("data:") });
+                  const ext = getExt(h.voucherUrl);
+                  const fileName = formatExportFileName(userName, identityLabel, date, h.id || "voucher", ext);
+                  builder.file(`${voucherFolder}/${fileName}`, h.voucherUrl, { base64: h.voucherUrl.startsWith("data:") });
                 }
                 if (h.invoiceUrl) {
-                  const ext = h.invoiceUrl.split(".").pop() || "jpg";
-                  zip.file(`${invoiceFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${h.submitTime?.replace(/[:\s]/g, "-") || today}_${h.id}.${ext}`, h.invoiceUrl, { base64: h.invoiceUrl.startsWith("data:") });
+                  const ext = getExt(h.invoiceUrl);
+                  const fileName = formatExportFileName(userName, identityLabel, date, `${h.id || "invoice"}-inv`, ext);
+                  builder.file(`${invoiceFolder}/${fileName}`, h.invoiceUrl, { base64: h.invoiceUrl.startsWith("data:") });
                 }
               }
             }
@@ -2510,13 +2646,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             for (const conf of branchConfs) {
               const reg = confRegs[conf.id];
               if (!reg) continue;
+              const regFeeType = (reg.feeType as ConferenceFeeType) || userFeeType;
+              if (regFeeType !== cat.feeType) continue;
+              const date = reg.voucherAuditTime?.slice(0, 10) || reg.submitTime?.slice(0, 10) || today;
               if (reg.paymentVoucher) {
-                const ext = reg.paymentVoucher.split(".").pop() || "jpg";
-                zip.file(`${voucherFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${conf.name.slice(0, 10)}_${today}.${ext}`, reg.paymentVoucher, { base64: reg.paymentVoucher.startsWith("data:") });
+                const ext = getExt(reg.paymentVoucher);
+                const fileName = formatExportFileName(userName, identityLabel, date, `${conf.id}-v`, ext);
+                builder.file(`${voucherFolder}/${fileName}`, reg.paymentVoucher, { base64: reg.paymentVoucher.startsWith("data:") });
               }
               if (reg.invoiceUrl) {
-                const ext = reg.invoiceUrl.split(".").pop() || "jpg";
-                zip.file(`${invoiceFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${conf.name.slice(0, 10)}_${today}.${ext}`, reg.invoiceUrl, { base64: reg.invoiceUrl.startsWith("data:") });
+                const ext = getExt(reg.invoiceUrl);
+                const fileName = formatExportFileName(userName, identityLabel, date, `${conf.id}-inv`, ext);
+                builder.file(`${invoiceFolder}/${fileName}`, reg.invoiceUrl, { base64: reg.invoiceUrl.startsWith("data:") });
               }
             }
           }
@@ -2532,7 +2673,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const rows = branchAttendees.map(a =>
           `"${a.name}","${a.email}","${a.gender}","${a.unit}","${CONFERENCE_FEE_TYPE_LABEL[a.feeType]}","¥${a.feeAmount}","${a.paymentStatus}","${a.reportType || "—"}","${a.accommodationLabel || "—"}","${a.fieldTripPre ? "是" : "否"}","${a.fieldTripDuring ? "是" : "否"}","${a.fieldTripPost ? "是" : "否"}"`
         );
-        zip.file(`${rootFolder}/汇总台账.csv`, "﻿" + header + "\n" + rows.join("\n"));
+        builder.file(`${rootFolder}/汇总台账.csv`, "\uFEFF" + header + "\n" + rows.join("\n"));
       }
     }
 
@@ -2544,32 +2685,28 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const invoiceFolder = `${rootFolder}/${cat.folderName}/电子发票`;
 
         for (const u of allUsers) {
-          const typeKey = `paleo_admin_user_type_${u.email}`;
-          const userType = localStorage.getItem(typeKey) || "regular";
-          const isStudent = u.role === "学生";
-          let userFeeType: ConferenceFeeType;
-          if (userType === "member") {
-            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
-          } else {
-            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
-          }
-          if (userFeeType !== cat.feeType) continue;
-
+          const userFeeType = resolveUserFeeType(u);
           const userName = u.name || u.email;
+          const identityLabel = CONFERENCE_FEE_TYPE_LABEL[cat.feeType];
           const confsKey = `paleo_admin_confs_${u.email}`;
           const storedConfs = localStorage.getItem(confsKey);
           if (!storedConfs) continue;
           const confRegs = JSON.parse(storedConfs);
           const reg = confRegs[options.scopeId];
           if (!reg) continue;
+          const regFeeType = (reg.feeType as ConferenceFeeType) || userFeeType;
+          if (regFeeType !== cat.feeType) continue;
 
+          const date = reg.voucherAuditTime?.slice(0, 10) || reg.submitTime?.slice(0, 10) || today;
           if (reg.paymentVoucher) {
-            const ext = reg.paymentVoucher.split(".").pop() || "jpg";
-            zip.file(`${voucherFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${today}_${options.scopeId}.${ext}`, reg.paymentVoucher, { base64: reg.paymentVoucher.startsWith("data:") });
+            const ext = getExt(reg.paymentVoucher);
+            const fileName = formatExportFileName(userName, identityLabel, date, `${options.scopeId}-v`, ext);
+            builder.file(`${voucherFolder}/${fileName}`, reg.paymentVoucher, { base64: reg.paymentVoucher.startsWith("data:") });
           }
           if (reg.invoiceUrl) {
-            const ext = reg.invoiceUrl.split(".").pop() || "jpg";
-            zip.file(`${invoiceFolder}/${sanitizeFileName(userName)}_${CONFERENCE_FEE_TYPE_LABEL[cat.feeType]}_${today}_${options.scopeId}.${ext}`, reg.invoiceUrl, { base64: reg.invoiceUrl.startsWith("data:") });
+            const ext = getExt(reg.invoiceUrl);
+            const fileName = formatExportFileName(userName, identityLabel, date, `${options.scopeId}-inv`, ext);
+            builder.file(`${invoiceFolder}/${fileName}`, reg.invoiceUrl, { base64: reg.invoiceUrl.startsWith("data:") });
           }
         }
       }
@@ -2580,11 +2717,11 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const rows = allAttendees.map(a =>
           `"${a.name}","${a.email}","${a.gender}","${a.unit}","${CONFERENCE_FEE_TYPE_LABEL[a.feeType]}","¥${a.feeAmount}","${a.paymentStatus}","${a.reportType || "—"}","${a.accommodationLabel || "—"}","${a.fieldTripPre ? "是" : "否"}","${a.fieldTripDuring ? "是" : "否"}","${a.fieldTripPost ? "是" : "否"}"`
         );
-        zip.file(`${rootFolder}/汇总台账.csv`, "﻿" + header + "\n" + rows.join("\n"));
+        builder.file(`${rootFolder}/汇总台账.csv`, "\uFEFF" + header + "\n" + rows.join("\n"));
       }
     }
 
-    return zip.generateAsync({ type: "blob" });
+    return builder.generateAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getAllConferences, getConferenceAttendees]);
 

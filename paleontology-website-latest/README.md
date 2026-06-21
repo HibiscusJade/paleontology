@@ -189,7 +189,27 @@ pnpm start
 ### 会议报名
 
 两阶段会议费流程 → 提交表单 → 上传摘要。
-费用通过 `getConferenceFee(confId, userType)` 自动按用户类型计算。
+费用通过 `deriveFeeType(userType, isStudent)` + `getConferenceFeeByType(confId, feeType)` 计算四类会议费；报名时锁定 `feeType` + `lockedAmount`。
+
+### 入会 / 退会（与管理端 AuditWorkbench 联调）
+
+- 入会：模板下载 → 上传申请书 → `application_submitted` → 管理端审核 → `application_approved` → 缴会员费
+- 退会：PersonalCenter 提交申请书 → 管理端审核 → 会员资格终止
+- 用户端写入时双写 `paleo_admin_*` key，管理端审核结果写回 `paleo_*` key；用户端每 2.5s 轮询同步状态
+
+### localStorage Key 对照（用户端 ↔ 管理端）
+
+| 语义 | 用户端 | 管理端 |
+|------|--------|--------|
+| 会议报名 | `paleo_confs_{email}` | `paleo_admin_confs_{email}` |
+| 会员状态 | `paleo_society_membership_{email}` | `paleo_admin_society_membership_{email}` |
+| 分会绑定 | `paleo_bound_branches_{email}` | `paleo_admin_bound_branches_{email}` |
+| 入会申请 | `paleo_membership_application_{email}` | `paleo_admin_membership_application_{email}` |
+| 退会申请 | `paleo_withdrawal_application_{email}` | `paleo_admin_withdrawal_application_{email}` |
+| 用户列表 | `paleo_all_users` | `paleo_admin_all_users` |
+| 入会/退会模板 | `paleo_membership_application_template` | 同 key（共享） |
+
+总学会虚拟绑定：`isSocietyAccessible(boundBranches, "zgswxh")` 恒为 `true`，未绑定分会也可查看/报名总学会会议。
 
 ### 通知
 
