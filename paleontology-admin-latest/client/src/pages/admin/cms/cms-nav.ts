@@ -20,7 +20,7 @@ export const CMS_SECTION_META: Record<string, CmsSectionMeta> = {
   science: { title: "科学传播", subtitle: "科普文章、视频、基地与化石保护等内容" },
   "tech-rewards": { title: "科技奖励", subtitle: "奖项介绍与申报指南" },
   party: { title: "党建文化", subtitle: "维护党建各子栏目的文章与专题" },
-  branch: { title: "分会内容", subtitle: "维护本分会在「组织机构」栏目下的概况与页面" },
+  branch: { title: "分会栏目", subtitle: "维护本分站概况、工作动态等页面内容" },
   media: { title: "媒体库", subtitle: "统一管理图片与附件" },
   settings: { title: "站点配置", subtitle: "版权信息、联系方式与首页快捷入口" },
 };

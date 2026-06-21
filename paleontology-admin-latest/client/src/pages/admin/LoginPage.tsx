@@ -117,9 +117,9 @@ export default function LoginPage() {
                 </p>
               </div>
               <div className="rounded-md bg-accent-gold/5 border border-accent-gold/15 px-3 py-2">
-                <p className="font-semibold text-strata-blue-deep">分会管理员（3项菜单）</p>
+                <p className="font-semibold text-strata-blue-deep">分会管理员（古脊椎动物学分会）</p>
                 <p className="text-muted-foreground mt-0.5">
-                  branch@gjzdw.org.cn / admin123
+                  branch_gjzdw@paleo.org.cn / admin123
                 </p>
               </div>
               <div className="rounded-md bg-accent-gold/5 border border-accent-gold/15 px-3 py-2">

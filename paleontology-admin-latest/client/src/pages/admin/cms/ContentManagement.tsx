@@ -33,10 +33,16 @@ type CmsSection = (typeof CMS_SECTIONS)[number];
 
 export default function ContentManagement() {
   const [, params] = useRoute("/admin/cms/:section");
-  const section = (CMS_SECTIONS.includes(params?.section || "") ? params?.section : "banners") as CmsSection;
-
-  const { adminRole, adminBranchId } = useAdmin();
+  const { adminRole, adminBranchId, canAccess } = useAdmin();
   const isBranchScope = adminRole === "branch_admin" && !!adminBranchId;
+
+  const rawSection = params?.section || "";
+  const section = ((): CmsSection => {
+    if (CMS_SECTIONS.includes(rawSection) && canAccess(`/admin/cms/${rawSection}`)) {
+      return rawSection as CmsSection;
+    }
+    return adminRole === "branch_admin" ? "branch" : "banners";
+  })();
 
   const [db, setDb] = useState<CmsDatabase>(() => loadCmsDatabase());
   const [previewArticle, setPreviewArticle] = useState<CmsArticle | null>(null);

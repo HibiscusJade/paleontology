@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { isAdminLoggedIn, canAccess } = useAdmin();
+  const { isAdminLoggedIn, canAccess, adminRole, getDefaultCmsPath } = useAdmin();
   const [location, setLocation] = useLocation();
 
   useEffect(() => {
@@ -16,9 +16,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     if (!canAccess(location)) {
       toast.error("您没有权限访问该页面");
-      setLocation("/admin/dashboard");
+      if (location.startsWith("/admin/cms") && adminRole === "branch_admin") {
+        setLocation(getDefaultCmsPath());
+      } else {
+        setLocation("/admin/dashboard");
+      }
     }
-  }, [isAdminLoggedIn, location, canAccess, setLocation]);
+  }, [isAdminLoggedIn, location, canAccess, adminRole, getDefaultCmsPath, setLocation]);
 
   if (!isAdminLoggedIn) {
     return null;

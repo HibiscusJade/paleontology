@@ -367,6 +367,7 @@ interface AdminContextType {
   adminBranchId: string | null;
   canAccess(path: string): boolean;
   getAllowedMenuItems(): MenuItem[];
+  getDefaultCmsPath(): string;
   pendingVoucherReviews: ReviewItem[];
   pendingInvoiceReviews: ReviewItem[];
   approveVoucher(targetEmail: string, type: "society_fee" | "conference_fee", confId?: string): void;
@@ -530,11 +531,11 @@ const ROUTE_PERMISSIONS: Record<string, AdminRole[]> = {
   "/admin/finance": ["super_admin", "finance_reviewer"],
   "/admin/branches": ["super_admin"],
   "/admin/cms": ["super_admin", "branch_admin"],
-  "/admin/cms/banners": ["super_admin", "branch_admin"],
-  "/admin/cms/news": ["super_admin", "branch_admin"],
+  "/admin/cms/banners": ["super_admin"],
+  "/admin/cms/news": ["super_admin"],
   "/admin/cms/announcements": ["super_admin", "branch_admin"],
-  "/admin/cms/pages": ["super_admin", "branch_admin"],
-  "/admin/cms/personnel": ["super_admin", "branch_admin"],
+  "/admin/cms/pages": ["super_admin"],
+  "/admin/cms/personnel": ["super_admin"],
   "/admin/cms/media": ["super_admin", "branch_admin"],
   "/admin/cms/settings": ["super_admin"],
   "/admin/cms/party": ["super_admin"],
@@ -548,6 +549,17 @@ const ROUTE_PERMISSIONS: Record<string, AdminRole[]> = {
   "/admin/cms/regulations": ["super_admin"],
   "/admin/cms/branch": ["branch_admin"],
 };
+
+/** 分会管理员 CMS 菜单 — 仅本分站栏目，不含总学会首页/简介等 */
+const BRANCH_CMS_MENU_ITEMS: MenuItem[] = [
+  { path: "/admin/cms/branch", label: "分会栏目", icon: "Building2" },
+  { path: "/admin/cms/announcements", label: "通知公告", icon: "Megaphone" },
+  { path: "/admin/cms/gallery", label: "历史相册", icon: "Images" },
+  { path: "/admin/cms/science", label: "科学传播", icon: "BookOpen" },
+  { path: "/admin/cms/awards", label: "获奖成果", icon: "Award" },
+  { path: "/admin/cms/downloads", label: "资料下载", icon: "Download" },
+  { path: "/admin/cms/media", label: "媒体库", icon: "FolderOpen" },
+];
 
 const ALL_MENU_ITEMS: MenuItem[] = [
   { path: "/admin/dashboard", label: "首页仪表盘", icon: "LayoutDashboard" },
@@ -1777,8 +1789,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const getAllowedMenuItems = useCallback((): MenuItem[] => {
-    return filterMenuTree(ALL_MENU_ITEMS);
-  }, [filterMenuTree]);
+    const filtered = filterMenuTree(ALL_MENU_ITEMS);
+    if (adminRole !== "branch_admin") return filtered;
+    return filtered.map(item =>
+      item.path === "/admin/cms" && item.children
+        ? { ...item, children: BRANCH_CMS_MENU_ITEMS }
+        : item
+    );
+  }, [filterMenuTree, adminRole]);
+
+  const getDefaultCmsPath = useCallback((): string => {
+    return adminRole === "branch_admin" ? "/admin/cms/branch" : "/admin/cms/banners";
+  }, [adminRole]);
 
   // ==========================================
   // NOTIFICATIONS
@@ -3205,6 +3227,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     adminBranchId,
     canAccess,
     getAllowedMenuItems,
+    getDefaultCmsPath,
     pendingVoucherReviews,
     pendingInvoiceReviews,
     approveVoucher,

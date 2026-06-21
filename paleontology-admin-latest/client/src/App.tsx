@@ -1,6 +1,6 @@
 import { Router, Route, Switch, Redirect } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
-import { AdminProvider } from "@/contexts/AdminContext";
+import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -19,6 +19,11 @@ import FinanceRecords from "@/pages/admin/FinanceRecords";
 import BranchManagement from "@/pages/admin/BranchManagement";
 import ContentManagement from "@/pages/admin/cms/ContentManagement";
 import NotFound from "@/pages/admin/NotFound";
+
+function CmsIndexRedirect() {
+  const { getDefaultCmsPath } = useAdmin();
+  return <Redirect to={getDefaultCmsPath()} />;
+}
 
 function WrappedPage({ children }: { children: React.ReactNode }) {
   return <AdminLayout>{children}</AdminLayout>;
@@ -92,7 +97,7 @@ export default function App() {
         )}
       </Route>
       <Route path="/admin/cms">
-        <Redirect to="/admin/cms/banners" />
+        <CmsIndexRedirect />
       </Route>
       <Route path="/">
         {() => <LoginPage />}
