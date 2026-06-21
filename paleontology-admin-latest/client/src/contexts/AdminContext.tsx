@@ -15,6 +15,11 @@ import {
   VALID_BRANCH_IDS,
   CONFERENCE_FEE_TYPE_LABEL,
   ACCOMMODATION_TYPE_LABEL,
+  ACCOMMODATION_TYPE,
+  ALL_SOCIETY_IDS,
+  deriveFeeType,
+  getFeeFromConfig,
+  type UserType,
 } from "@shared/constants";
 
 // ============================================================================
@@ -330,7 +335,7 @@ export interface ConferenceAttendee {
 
 // Phase 5: 导出选项
 export interface ExportOptions {
-  scope: "branch" | "conference";
+  scope: "branch" | "conference" | "global";
   scopeId: string;
   includeCategories?: ConferenceFeeType[];
 }
@@ -652,7 +657,7 @@ function filterMembersByBranchScope(
 
 function buildReviewItem(
   email: string,
-  user: { name?: string; email: string },
+  user: { name?: string; email: string; role?: string },
   type: "society_fee" | "conference_fee",
   confId?: string
 ): ReviewItem {
@@ -684,13 +689,25 @@ function buildReviewItem(
 
   if (type === "conference_fee" && confId && confRegs[confId]) {
     const reg = confRegs[confId];
+    const adminConfs: ConferenceRecord[] = JSON.parse(localStorage.getItem("paleo_admin_conferences_db") || "[]");
+    const conf = adminConfs.find(c => c.id === confId);
+    const userType = (localStorage.getItem(`paleo_admin_user_type_${email}`) || "regular") as UserType;
+    const isStudent = user.role === "学生";
+    let amount = reg.lockedAmount ?? 0;
+    if (!amount && conf?.feeConfig) {
+      const feeType = deriveFeeType(userType, isStudent);
+      amount = getFeeFromConfig(conf.feeConfig, feeType);
+    }
+    if (!amount && conf) {
+      amount = conf.feeConfig?.nonStudentMember || conf.memberFee || 0;
+    }
     return {
       id: `voucher-${email}-${confId}`,
       userEmail: email,
       userName: user.name || email,
       type: "conference_fee",
       targetName: confId,
-      amount: reg.paymentVoucher ? 1000 : 0,
+      amount,
       voucherUrl: reg.paymentVoucher || "",
       invoiceUrl: reg.invoiceUrl || "",
       submitTime: reg.voucherSubmitTime || "",
@@ -713,6 +730,105 @@ function buildReviewItem(
     status: "unknown",
     confId,
   };
+}
+
+// ── 统计聚合辅助（基于实收报名记录，非估算） ─────────────────────────────
+
+const REVENUE_CONFERENCE_STATUSES = new Set(["confirmed", "approved_invoice", "active"]);
+const MEMBERSHIP_REVENUE_STATUSES = new Set(["approved", "active", "confirmed"]);
+
+function createEmptyFeeBreakdown(): FeeBreakdown {
+  return {
+    studentMember: { count: 0, amount: 0 },
+    nonStudentMember: { count: 0, amount: 0 },
+    studentNonMember: { count: 0, amount: 0 },
+    nonStudentNonMember: { count: 0, amount: 0 },
+  };
+}
+
+function accumulateFeeBreakdown(breakdown: FeeBreakdown, feeType: ConferenceFeeType, amount: number): void {
+  switch (feeType) {
+    case CONFERENCE_FEE_TYPE.STUDENT_MEMBER:
+      breakdown.studentMember.count += 1;
+      breakdown.studentMember.amount += amount;
+      break;
+    case CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER:
+      breakdown.nonStudentMember.count += 1;
+      breakdown.nonStudentMember.amount += amount;
+      break;
+    case CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER:
+      breakdown.studentNonMember.count += 1;
+      breakdown.studentNonMember.amount += amount;
+      break;
+    case CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER:
+      breakdown.nonStudentNonMember.count += 1;
+      breakdown.nonStudentNonMember.amount += amount;
+      break;
+  }
+}
+
+function aggregateFeeBreakdownFromAttendees(attendees: ConferenceAttendee[], revenueOnly = true): FeeBreakdown {
+  const breakdown = createEmptyFeeBreakdown();
+  for (const attendee of attendees) {
+    if (revenueOnly && !REVENUE_CONFERENCE_STATUSES.has(attendee.paymentStatus)) continue;
+    accumulateFeeBreakdown(breakdown, attendee.feeType, attendee.feeAmount);
+  }
+  return breakdown;
+}
+
+function collectConferenceAttendees(confId: string, conf?: ConferenceRecord): ConferenceAttendee[] {
+  const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string }[] =
+    JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+  const attendees: ConferenceAttendee[] = [];
+
+  for (const u of allUsers) {
+    const confsKey = `paleo_admin_confs_${u.email}`;
+    const storedConfs = localStorage.getItem(confsKey);
+    if (!storedConfs) continue;
+    const confRegs = JSON.parse(storedConfs);
+    const reg = confRegs[confId];
+    if (!reg || reg.status === "unpaid") continue;
+
+    const userType = (localStorage.getItem(`paleo_admin_user_type_${u.email}`) || "regular") as UserType;
+    const isStudent = u.role === "学生";
+    const feeType = reg.feeType
+      ? (reg.feeType as ConferenceFeeType)
+      : deriveFeeType(userType, isStudent);
+
+    let feeAmount = reg.lockedAmount ?? 0;
+    if (!feeAmount && conf?.feeConfig) {
+      feeAmount = getFeeFromConfig(conf.feeConfig, feeType);
+    }
+
+    const ftSelections = reg.fieldTripSelections;
+    const accType = reg.accommodationType;
+    const accLabel = accType ? ACCOMMODATION_TYPE_LABEL[accType] || accType : (reg.accommodation || "—");
+
+    attendees.push({
+      email: u.email,
+      name: reg.name || u.name || u.email,
+      gender: reg.gender || u.gender || "",
+      unit: reg.unit || u.unit || "",
+      role: reg.role || u.role || "",
+      userType: userType === "member" ? "member" : "non_member",
+      feeType,
+      feeAmount,
+      paymentStatus: reg.status || "unpaid",
+      reportType: reg.presentationType,
+      reportTitle: reg.reportTitle,
+      abstractFileName: reg.abstractFileName,
+      abstractFileUrl: reg.abstractFileUrl,
+      accommodationType: accType,
+      accommodationLabel: accLabel,
+      fieldTripPre: !!(ftSelections?.pre?.length),
+      fieldTripDuring: !!(ftSelections?.during?.length),
+      fieldTripPost: !!(ftSelections?.post?.length),
+      voucherUrl: reg.paymentVoucher,
+      invoiceUrl: reg.invoiceUrl,
+    });
+  }
+
+  return attendees;
 }
 
 // ============================================================================
@@ -2041,7 +2157,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [buildReviewQueues]);
 
-  // Phase 3: Global statistics
+  // Phase 3: Global statistics（基于实收记录聚合）
   const getGlobalStats = useCallback((): GlobalStats => {
     const members = getAllMembers();
     const confs = getAllConferences();
@@ -2053,22 +2169,42 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const studentNonMembers = nonMemberUsers.filter(m => m.role === "学生").length;
     const nonStudentNonMembers = nonMemberUsers.filter(m => m.role !== "学生").length;
 
-    // Estimate membership fee totals
-    const studentMembershipFeeCount = studentMembers;
-    const studentMembershipFeeAmount = studentMembershipFeeCount * 100;
-    const nonStudentMembershipFeeCount = nonStudentMembers;
-    const nonStudentMembershipFeeAmount = nonStudentMembershipFeeCount * 200;
-    const totalMembershipFee = studentMembershipFeeAmount + nonStudentMembershipFeeAmount;
+    const allUsers: { email: string; role?: string }[] = JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
+    let studentMembershipFeeCount = 0;
+    let studentMembershipFeeAmount = 0;
+    let nonStudentMembershipFeeCount = 0;
+    let nonStudentMembershipFeeAmount = 0;
 
-    // Estimate conference fee per society
-    const perSocietyConferenceFee: Record<string, number> = {};
-    for (const conf of confs) {
-      const bid = conf.branchId;
-      perSocietyConferenceFee[bid] = (perSocietyConferenceFee[bid] || 0) + (conf.feeConfig?.nonStudentMember || conf.memberFee) * conf.registrations;
+    for (const u of allUsers) {
+      const stored = localStorage.getItem(`paleo_admin_society_membership_${u.email}`);
+      if (!stored) continue;
+      const membership = JSON.parse(stored);
+      for (const h of (membership.history || [])) {
+        if (!MEMBERSHIP_REVENUE_STATUSES.has(h.status)) continue;
+        const isStudent = u.role === "学生" || (h.amount ?? 0) <= 100;
+        if (isStudent) {
+          studentMembershipFeeCount += 1;
+          studentMembershipFeeAmount += h.amount || 100;
+        } else {
+          nonStudentMembershipFeeCount += 1;
+          nonStudentMembershipFeeAmount += h.amount || 200;
+        }
+      }
     }
 
-    // Estimate total conference fee
-    const totalConferenceFee = Object.values(perSocietyConferenceFee).reduce((a, b) => a + b, 0);
+    const perSocietyConferenceFee: Record<string, number> = {};
+    let totalConferenceFee = 0;
+
+    for (const conf of confs) {
+      const attendees = collectConferenceAttendees(conf.id, conf);
+      for (const attendee of attendees) {
+        if (!REVENUE_CONFERENCE_STATUSES.has(attendee.paymentStatus)) continue;
+        perSocietyConferenceFee[conf.branchId] = (perSocietyConferenceFee[conf.branchId] || 0) + attendee.feeAmount;
+        totalConferenceFee += attendee.feeAmount;
+      }
+    }
+
+    const totalMembershipFee = studentMembershipFeeAmount + nonStudentMembershipFeeAmount;
 
     return {
       totalUsers: members.length,
@@ -2088,64 +2224,51 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [getAllMembers, getAllConferences]);
 
-  // Phase 3: Per-society statistics
+  // Phase 3: Per-society statistics（基于实收报名记录）
   const getSocietyStats = useCallback((societyId: string): SocietyStats => {
-    const members = getAllMembers();
     const confs = getAllConferences().filter(c => c.branchId === societyId);
     const societyName = ALL_SOCIETY_UNITS[societyId] || societyId;
 
-    let totalAttendees = 0;
-    let totalMembers = 0;
-    let totalNonMembers = 0;
+    const allAttendees: ConferenceAttendee[] = [];
+    for (const conf of confs) {
+      allAttendees.push(...collectConferenceAttendees(conf.id, conf));
+    }
+
+    const revenueAttendees = allAttendees.filter(a => REVENUE_CONFERENCE_STATUSES.has(a.paymentStatus));
+    const feeBreakdown = aggregateFeeBreakdownFromAttendees(allAttendees, true);
+    const totalConferenceFee =
+      feeBreakdown.studentMember.amount +
+      feeBreakdown.nonStudentMember.amount +
+      feeBreakdown.studentNonMember.amount +
+      feeBreakdown.nonStudentNonMember.amount;
+
     let studentMembers = 0;
     let nonStudentMembers = 0;
     let studentNonMembers = 0;
     let nonStudentNonMembers = 0;
-    let totalConferenceFee = 0;
 
-    const feeBreakdown: FeeBreakdown = {
-      studentMember: { count: 0, amount: 0 },
-      nonStudentMember: { count: 0, amount: 0 },
-      studentNonMember: { count: 0, amount: 0 },
-      nonStudentNonMember: { count: 0, amount: 0 },
-    };
-
-    for (const conf of confs) {
-      const fc = conf.feeConfig;
-      const regs = conf.registrations;
-      // Estimate breakdown assuming equal distribution
-      const quarter = Math.floor(regs / 4);
-      const remainder = regs - quarter * 4;
-      feeBreakdown.studentMember.count += quarter + (remainder > 0 ? 1 : 0);
-      feeBreakdown.studentMember.amount += (quarter + (remainder > 0 ? 1 : 0)) * (fc?.studentMember || 0);
-      feeBreakdown.nonStudentMember.count += quarter + (remainder > 1 ? 1 : 0);
-      feeBreakdown.nonStudentMember.amount += (quarter + (remainder > 1 ? 1 : 0)) * (fc?.nonStudentMember || conf.memberFee);
-      feeBreakdown.studentNonMember.count += quarter + (remainder > 2 ? 1 : 0);
-      feeBreakdown.studentNonMember.amount += (quarter + (remainder > 2 ? 1 : 0)) * (fc?.studentNonMember || 0);
-      feeBreakdown.nonStudentNonMember.count += quarter;
-      feeBreakdown.nonStudentNonMember.amount += quarter * (fc?.nonStudentNonMember || conf.nonMemberFee);
-
-      totalAttendees += regs;
-      totalConferenceFee += (fc?.studentMember || 0) * feeBreakdown.studentMember.count +
-        (fc?.nonStudentMember || conf.memberFee) * feeBreakdown.nonStudentMember.count +
-        (fc?.studentNonMember || 0) * feeBreakdown.studentNonMember.count +
-        (fc?.nonStudentNonMember || conf.nonMemberFee) * feeBreakdown.nonStudentNonMember.count;
+    for (const attendee of revenueAttendees) {
+      switch (attendee.feeType) {
+        case CONFERENCE_FEE_TYPE.STUDENT_MEMBER:
+          studentMembers += 1;
+          break;
+        case CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER:
+          nonStudentMembers += 1;
+          break;
+        case CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER:
+          studentNonMembers += 1;
+          break;
+        case CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER:
+          nonStudentNonMembers += 1;
+          break;
+      }
     }
-
-    // Estimate member/non-member counts
-    const boundMembers = members.filter(m => m.boundBranches.includes(societyId));
-    totalMembers = boundMembers.filter(m => m.userType === "member").length;
-    totalNonMembers = boundMembers.filter(m => m.userType === "non_member").length;
-    studentMembers = boundMembers.filter(m => m.userType === "member" && m.role === "学生").length;
-    nonStudentMembers = boundMembers.filter(m => m.userType === "member" && m.role !== "学生").length;
-    studentNonMembers = boundMembers.filter(m => m.userType === "non_member" && m.role === "学生").length;
-    nonStudentNonMembers = boundMembers.filter(m => m.userType === "non_member" && m.role !== "学生").length;
 
     return {
       societyName,
-      totalAttendees,
-      totalMembers,
-      totalNonMembers,
+      totalAttendees: revenueAttendees.length,
+      totalMembers: studentMembers + nonStudentMembers,
+      totalNonMembers: studentNonMembers + nonStudentNonMembers,
       studentMembers,
       nonStudentMembers,
       studentNonMembers,
@@ -2153,9 +2276,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       totalConferenceFee,
       feeBreakdown,
     };
-  }, [getAllMembers, getAllConferences]);
+  }, [getAllConferences]);
 
-  // Phase 3: Per-conference statistics
+  // Phase 3: Per-conference statistics（基于实收报名记录）
   const getConferenceStats = useCallback((confId: string): ConferenceStats => {
     const confs = getAllConferences();
     const conf = confs.find(c => c.id === confId);
@@ -2174,12 +2297,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         nonStudentMembers: 0,
         studentNonMembers: 0,
         nonStudentNonMembers: 0,
-        feeBreakdown: {
-          studentMember: { count: 0, amount: 0 },
-          nonStudentMember: { count: 0, amount: 0 },
-          studentNonMember: { count: 0, amount: 0 },
-          nonStudentNonMember: { count: 0, amount: 0 },
-        },
+        feeBreakdown: createEmptyFeeBreakdown(),
         accommodation: { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0 },
         fieldTrips: {
           pre: { total: 0, male: 0, female: 0 },
@@ -2189,60 +2307,67 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     }
 
-    const fc = conf.feeConfig;
-    const regs = conf.registrations;
-    const quarter = Math.floor(regs / 4);
-    const remainder = regs - quarter * 4;
-
-    const feeBreakdown: FeeBreakdown = {
-      studentMember: {
-        count: quarter + (remainder > 0 ? 1 : 0),
-        amount: (quarter + (remainder > 0 ? 1 : 0)) * (fc?.studentMember || 0),
-      },
-      nonStudentMember: {
-        count: quarter + (remainder > 1 ? 1 : 0),
-        amount: (quarter + (remainder > 1 ? 1 : 0)) * (fc?.nonStudentMember || conf.memberFee),
-      },
-      studentNonMember: {
-        count: quarter + (remainder > 2 ? 1 : 0),
-        amount: (quarter + (remainder > 2 ? 1 : 0)) * (fc?.studentNonMember || 0),
-      },
-      nonStudentNonMember: {
-        count: quarter,
-        amount: quarter * (fc?.nonStudentNonMember || conf.nonMemberFee),
-      },
-    };
-
+    const attendees = collectConferenceAttendees(confId, conf);
+    const revenueAttendees = attendees.filter(a => REVENUE_CONFERENCE_STATUSES.has(a.paymentStatus));
+    const feeBreakdown = aggregateFeeBreakdownFromAttendees(attendees, true);
     const totalConferenceFee =
       feeBreakdown.studentMember.amount +
       feeBreakdown.nonStudentMember.amount +
       feeBreakdown.studentNonMember.amount +
       feeBreakdown.nonStudentNonMember.amount;
 
-    // Estimate report counts (40% regs, 60/40 oral/poster split)
-    const totalReports = Math.round(regs * 0.4);
-    const oralReports = Math.round(totalReports * 0.6);
-    const posterReports = totalReports - oralReports;
+    const oralReports = attendees.filter(a => a.reportType === "口头报告").length;
+    const posterReports = attendees.filter(a => a.reportType === "展板报告").length;
 
-    // Estimate accommodation (30% of regs)
-    const accRooms = Math.round(regs * 0.3);
-    const accMaleSingle = Math.round(accRooms * 0.15);
-    const accMaleDouble = Math.round(accRooms * 0.3);
-    const accFemaleSingle = Math.round(accRooms * 0.15);
-    const accFemaleDouble = accRooms - accMaleSingle - accMaleDouble - accFemaleSingle;
+    const accommodation = { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0 };
+    for (const attendee of attendees) {
+      switch (attendee.accommodationType) {
+        case ACCOMMODATION_TYPE.MALE_SINGLE:
+          accommodation.maleSingle += 1;
+          break;
+        case ACCOMMODATION_TYPE.MALE_DOUBLE:
+          accommodation.maleDouble += 1;
+          break;
+        case ACCOMMODATION_TYPE.FEMALE_SINGLE:
+          accommodation.femaleSingle += 1;
+          break;
+        case ACCOMMODATION_TYPE.FEMALE_DOUBLE:
+          accommodation.femaleDouble += 1;
+          break;
+      }
+    }
+    accommodation.totalRooms =
+      accommodation.maleSingle + accommodation.maleDouble + accommodation.femaleSingle + accommodation.femaleDouble;
 
-    // Estimate field trip participants (20% of regs)
-    const tripTotal = Math.round(regs * 0.2);
-    const tripMale = Math.round(tripTotal * 0.65);
-    const tripFemale = tripTotal - tripMale;
-    const tripPerPhase = Math.round(tripTotal / 3);
+    const fieldTrips = {
+      pre: { total: 0, male: 0, female: 0 },
+      during: { total: 0, male: 0, female: 0 },
+      post: { total: 0, male: 0, female: 0 },
+    };
+    for (const attendee of attendees) {
+      if (attendee.fieldTripPre) {
+        fieldTrips.pre.total += 1;
+        if (attendee.gender === "男") fieldTrips.pre.male += 1;
+        if (attendee.gender === "女") fieldTrips.pre.female += 1;
+      }
+      if (attendee.fieldTripDuring) {
+        fieldTrips.during.total += 1;
+        if (attendee.gender === "男") fieldTrips.during.male += 1;
+        if (attendee.gender === "女") fieldTrips.during.female += 1;
+      }
+      if (attendee.fieldTripPost) {
+        fieldTrips.post.total += 1;
+        if (attendee.gender === "男") fieldTrips.post.male += 1;
+        if (attendee.gender === "女") fieldTrips.post.female += 1;
+      }
+    }
 
     return {
       confName: conf.name,
       societyName: conf.branchName || ALL_SOCIETY_UNITS[conf.branchId] || conf.branchId,
-      totalAttendees: regs,
+      totalAttendees: revenueAttendees.length,
       totalConferenceFee,
-      totalReports,
+      totalReports: oralReports + posterReports,
       oralReports,
       posterReports,
       totalMembers: feeBreakdown.studentMember.count + feeBreakdown.nonStudentMember.count,
@@ -2252,18 +2377,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       studentNonMembers: feeBreakdown.studentNonMember.count,
       nonStudentNonMembers: feeBreakdown.nonStudentNonMember.count,
       feeBreakdown,
-      accommodation: {
-        totalRooms: accRooms,
-        maleSingle: accMaleSingle,
-        maleDouble: accMaleDouble,
-        femaleSingle: accFemaleSingle,
-        femaleDouble: accFemaleDouble,
-      },
-      fieldTrips: {
-        pre: { total: tripPerPhase, male: Math.round(tripMale / 3), female: Math.round(tripFemale / 3) },
-        during: { total: tripPerPhase, male: Math.round(tripMale / 3), female: Math.round(tripFemale / 3) },
-        post: { total: tripTotal - tripPerPhase * 2, male: tripMale - Math.round(tripMale / 3) * 2, female: tripFemale - Math.round(tripFemale / 3) * 2 },
-      },
+      accommodation,
+      fieldTrips,
     };
   }, [getAllConferences]);
 
@@ -2307,82 +2422,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ==========================================
 
   const getConferenceAttendees = useCallback((confId: string): ConferenceAttendee[] => {
-    const allUsers: { email: string; name?: string; gender?: string; unit?: string; role?: string }[] =
-      JSON.parse(localStorage.getItem("paleo_admin_all_users") || "[]");
-    const confs = getAllConferences();
-    const conf = confs.find(c => c.id === confId);
-
-    const attendees: ConferenceAttendee[] = [];
-
-    for (const u of allUsers) {
-      const confsKey = `paleo_admin_confs_${u.email}`;
-      const storedConfs = localStorage.getItem(confsKey);
-      if (!storedConfs) continue;
-      const confRegs = JSON.parse(storedConfs);
-      const reg = confRegs[confId];
-      if (!reg) continue;
-      // Skip unpaid
-      if (reg.status === "unpaid") continue;
-
-      const typeKey = `paleo_admin_user_type_${u.email}`;
-      const userType = localStorage.getItem(typeKey) || "regular";
-      const isStudent = u.role === "学生";
-
-      // Determine fee type
-      let feeType: ConferenceFeeType;
-      if (userType === "member") {
-        feeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
-      } else {
-        feeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
-      }
-
-      // Determine fee amount
-      let feeAmount = 0;
-      if (conf?.feeConfig) {
-        const fc = conf.feeConfig;
-        switch (feeType) {
-          case CONFERENCE_FEE_TYPE.STUDENT_MEMBER: feeAmount = fc.studentMember; break;
-          case CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER: feeAmount = fc.nonStudentMember; break;
-          case CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER: feeAmount = fc.studentNonMember; break;
-          case CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER: feeAmount = fc.nonStudentNonMember; break;
-        }
-      }
-
-      // Field trip participation
-      const ftSelections = reg.fieldTripSelections;
-      const fieldTripPre = !!(ftSelections?.pre?.length);
-      const fieldTripDuring = !!(ftSelections?.during?.length);
-      const fieldTripPost = !!(ftSelections?.post?.length);
-
-      // Accommodation label
-      const accType = reg.accommodationType;
-      const accLabel = accType ? ACCOMMODATION_TYPE_LABEL[accType] || accType : (reg.accommodation || "—");
-
-      attendees.push({
-        email: u.email,
-        name: reg.name || u.name || u.email,
-        gender: reg.gender || u.gender || "",
-        unit: reg.unit || u.unit || "",
-        role: reg.role || u.role || "",
-        userType: userType === "member" ? "member" : "non_member",
-        feeType,
-        feeAmount,
-        paymentStatus: reg.status || "unpaid",
-        reportType: reg.presentationType,
-        reportTitle: reg.reportTitle,
-        abstractFileName: reg.abstractFileName,
-        abstractFileUrl: reg.abstractFileUrl,
-        accommodationType: accType,
-        accommodationLabel: accLabel,
-        fieldTripPre,
-        fieldTripDuring,
-        fieldTripPost,
-        voucherUrl: reg.paymentVoucher,
-        invoiceUrl: reg.invoiceUrl,
-      });
-    }
-
-    return attendees;
+    const conf = getAllConferences().find(c => c.id === confId);
+    return collectConferenceAttendees(confId, conf);
   }, [getAllConferences]);
 
   // Helper to normalize file names
@@ -2409,45 +2450,45 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const today = new Date().toISOString().split("T")[0];
 
-    // Determine scope name for root folder
-    let scopeName = options.scopeId;
-    if (options.scope === "branch") {
-      scopeName = ALL_SOCIETY_UNITS[options.scopeId] || options.scopeId;
-    } else {
-      const conf = confs.find(c => c.id === options.scopeId);
-      scopeName = conf?.name || options.scopeId;
-    }
+    const branchScopes: { scopeId: string; rootFolder: string }[] =
+      options.scope === "global"
+        ? ALL_SOCIETY_IDS.map(societyId => ({
+            scopeId: societyId,
+            rootFolder: `export_global_all_${today}/${sanitizeFileName(ALL_SOCIETY_UNITS[societyId] || societyId)}`,
+          }))
+        : options.scope === "branch"
+          ? [{
+              scopeId: options.scopeId,
+              rootFolder: `export_branch_${sanitizeFileName(options.scopeId)}_${today}`,
+            }]
+          : [];
 
-    const rootFolder = `export_${options.scope}_${sanitizeFileName(options.scopeId)}_${today}`;
+    for (const { scopeId: branchId, rootFolder } of branchScopes) {
+      for (const cat of filteredCategories) {
+        const voucherFolder = `${rootFolder}/${cat.folderName}/缴费凭证`;
+        const invoiceFolder = `${rootFolder}/${cat.folderName}/电子发票`;
 
-    for (const cat of filteredCategories) {
-      const voucherFolder = `${rootFolder}/${cat.folderName}/缴费凭证`;
-      const invoiceFolder = `${rootFolder}/${cat.folderName}/电子发票`;
+        for (const u of allUsers) {
+          const typeKey = `paleo_admin_user_type_${u.email}`;
+          const userType = localStorage.getItem(typeKey) || "regular";
+          const isStudent = u.role === "学生";
+          let userFeeType: ConferenceFeeType;
+          if (userType === "member") {
+            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
+          } else {
+            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
+          }
+          if (userFeeType !== cat.feeType) continue;
 
-      for (const u of allUsers) {
-        const typeKey = `paleo_admin_user_type_${u.email}`;
-        const userType = localStorage.getItem(typeKey) || "regular";
-        const isStudent = u.role === "学生";
-        let userFeeType: ConferenceFeeType;
-        if (userType === "member") {
-          userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
-        } else {
-          userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
-        }
-        if (userFeeType !== cat.feeType) continue;
+          const userName = u.name || u.email;
 
-        const userName = u.name || u.email;
-
-        if (options.scope === "branch") {
-          // Export by branch: collect society membership records and conference records for this branch
-          // Society membership vouchers/invoices
           const membershipKey = `paleo_admin_society_membership_${u.email}`;
           const storedMembership = localStorage.getItem(membershipKey);
           if (storedMembership) {
             const membership = JSON.parse(storedMembership);
             const userBoundKey = `paleo_admin_bound_branches_${u.email}`;
             const boundBranches: string[] = JSON.parse(localStorage.getItem(userBoundKey) || "[]");
-            if (boundBranches.includes(options.scopeId)) {
+            if (boundBranches.includes(branchId)) {
               for (const h of (membership.history || [])) {
                 if (h.voucherUrl) {
                   const ext = h.voucherUrl.split(".").pop() || "jpg";
@@ -2461,8 +2502,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           }
 
-          // Conference records for this branch
-          const branchConfs = confs.filter(c => c.branchId === options.scopeId);
+          const branchConfs = confs.filter(c => c.branchId === branchId);
           const confsKey = `paleo_admin_confs_${u.email}`;
           const storedConfs = localStorage.getItem(confsKey);
           if (storedConfs) {
@@ -2480,8 +2520,42 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               }
             }
           }
-        } else {
-          // Export by conference
+        }
+      }
+
+      const branchAttendees: ConferenceAttendee[] = [];
+      for (const conf of confs.filter(c => c.branchId === branchId)) {
+        branchAttendees.push(...collectConferenceAttendees(conf.id, conf));
+      }
+      if (branchAttendees.length > 0) {
+        const header = "姓名,邮箱,性别,单位,身份类型,费用类型,缴费状态,报告类型,住宿,野外(会前),野外(会中),野外(会后)";
+        const rows = branchAttendees.map(a =>
+          `"${a.name}","${a.email}","${a.gender}","${a.unit}","${CONFERENCE_FEE_TYPE_LABEL[a.feeType]}","¥${a.feeAmount}","${a.paymentStatus}","${a.reportType || "—"}","${a.accommodationLabel || "—"}","${a.fieldTripPre ? "是" : "否"}","${a.fieldTripDuring ? "是" : "否"}","${a.fieldTripPost ? "是" : "否"}"`
+        );
+        zip.file(`${rootFolder}/汇总台账.csv`, "﻿" + header + "\n" + rows.join("\n"));
+      }
+    }
+
+    if (options.scope === "conference") {
+      const rootFolder = `export_conference_${sanitizeFileName(options.scopeId)}_${today}`;
+
+      for (const cat of filteredCategories) {
+        const voucherFolder = `${rootFolder}/${cat.folderName}/缴费凭证`;
+        const invoiceFolder = `${rootFolder}/${cat.folderName}/电子发票`;
+
+        for (const u of allUsers) {
+          const typeKey = `paleo_admin_user_type_${u.email}`;
+          const userType = localStorage.getItem(typeKey) || "regular";
+          const isStudent = u.role === "学生";
+          let userFeeType: ConferenceFeeType;
+          if (userType === "member") {
+            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER;
+          } else {
+            userFeeType = isStudent ? CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER : CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER;
+          }
+          if (userFeeType !== cat.feeType) continue;
+
+          const userName = u.name || u.email;
           const confsKey = `paleo_admin_confs_${u.email}`;
           const storedConfs = localStorage.getItem(confsKey);
           if (!storedConfs) continue;
@@ -2499,18 +2573,15 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       }
-    }
 
-    // Generate CSV summary if there are records
-    const allAttendees = options.scope === "conference"
-      ? getConferenceAttendees(options.scopeId)
-      : [];
-    if (allAttendees.length > 0) {
-      const header = "姓名,邮箱,性别,单位,身份类型,费用类型,缴费状态,报告类型,住宿,野外(会前),野外(会中),野外(会后)";
-      const rows = allAttendees.map(a =>
-        `"${a.name}","${a.email}","${a.gender}","${a.unit}","${CONFERENCE_FEE_TYPE_LABEL[a.feeType]}","¥${a.feeAmount}","${a.paymentStatus}","${a.reportType || "—"}","${a.accommodationLabel || "—"}","${a.fieldTripPre ? "是" : "否"}","${a.fieldTripDuring ? "是" : "否"}","${a.fieldTripPost ? "是" : "否"}"`
-      );
-      zip.file(`${rootFolder}/汇总台账.csv`, "﻿" + header + "\n" + rows.join("\n"));
+      const allAttendees = getConferenceAttendees(options.scopeId);
+      if (allAttendees.length > 0) {
+        const header = "姓名,邮箱,性别,单位,身份类型,费用类型,缴费状态,报告类型,住宿,野外(会前),野外(会中),野外(会后)";
+        const rows = allAttendees.map(a =>
+          `"${a.name}","${a.email}","${a.gender}","${a.unit}","${CONFERENCE_FEE_TYPE_LABEL[a.feeType]}","¥${a.feeAmount}","${a.paymentStatus}","${a.reportType || "—"}","${a.accommodationLabel || "—"}","${a.fieldTripPre ? "是" : "否"}","${a.fieldTripDuring ? "是" : "否"}","${a.fieldTripPost ? "是" : "否"}"`
+        );
+        zip.file(`${rootFolder}/汇总台账.csv`, "﻿" + header + "\n" + rows.join("\n"));
+      }
     }
 
     return zip.generateAsync({ type: "blob" });

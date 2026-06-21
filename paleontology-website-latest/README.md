@@ -1,638 +1,257 @@
-# Web App Template (Static Frontend)
+# 中国古生物学会网站 (Paleontological Society of China)
 
-Pure React 19 + Tailwind 4 template with shadcn/ui baked in. **Use this README as the checklist for shipping static experiences.**
+中国古生物学会官方门户网站 — 包含学会主站（面向公众）和党建文化子系统（面向内部）的静态 SPA 应用。
 
-> **Note:** This template includes a minimal `shared/` and `server/` directory with placeholder types to support imported templates. These are just compatibility placeholders - web-static remains a true static-only template without API functionality.
+## 技术栈
 
----
+| 技术 | 版本 / 工具 |
+|------|------------|
+| **框架** | React 19 |
+| **构建** | Vite 7 |
+| **CSS** | Tailwind CSS 4 + shadcn/ui (New York 风格) |
+| **路由** | wouter (支持 pushState / hash 双模式) |
+| **服务端** | Express (生产环境静态文件托管) |
+| **语言** | TypeScript 5.6 |
+| **包管理** | pnpm 10.4+ |
 
-## Stack Overview
-- Client-only routing powered by React + Wouter.
-- Design tokens live entirely in `client/src/index.css`—keep that file intact.
+### 核心依赖
 
-## File Structure
+- **表单**: react-hook-form + zod 校验
+- **动画**: framer-motion + tw-animate-css
+- **图表**: recharts
+- **轮播**: embla-carousel-react
+- **Markdown 渲染**: streamdown
+- **Toast**: sonner
+- **图标**: lucide-react (组件图标) + Material Symbols (界面图标)
+- **地图**: Google Maps (通过 Manus 代理，无需 API Key)
 
-```
-client/
-  public/       ← Small configuration files ONLY (favicon.ico, robots.txt). DO NOT put images/media here.
-  src/
-    pages/      ← Page-level components
-    components/ ← Reusable UI & shadcn/ui
-    contexts/   ← React contexts
-    hooks/      ← Custom React hooks
-    lib/        ← Utility helpers
-    App.tsx     ← Routes & top-level layout
-    main.tsx    ← React entry point
-    index.css   ← global style
-server/         ← Placeholder for imported template compatibility
-shared/         ← Placeholder for imported template compatibility
-  const.ts      ← Shared constants
-```
+## 快速开始
 
-### ⚠️ Handling Images & Media
+```bash
+# 安装依赖
+pnpm install
 
-**DO NOT** store images, videos, or large assets in `client/public/` or `client/src/assets/`. Local media files will cause deployment timeouts.
+# 启动开发服务器 (http://localhost:3000)
+pnpm dev
 
-**Required workflow:**
-1. Upload assets using the CLI: `manus-upload-file --webdev path/to/image.png`
-2. Use the returned storage path directly in your code: `<img src="/manus-storage/image_a1b2c3d4.png" />`
-3. Store the original local file in `/home/ubuntu/webdev-static-assets/` (outside the project directory)
+# TypeScript 类型检查
+pnpm check
 
-Only small configuration files like `favicon.ico`, `robots.txt`, and `manifest.json` belong in `client/public/`.
-
-Files in `client/public` are available at the root of your site—reference them with absolute paths (`/robots.txt`, etc.) from HTML templates, JSX, or meta tags.
-
----
-
-## 🎯 Development Workflow
-
-1. **Choose a design style** before you write any frontend code according to Design Guide (color, font, shadow, art style). Tell user what you chose. Remember to edit `client/src/index.css` for global theming and add needed font using google font cdn in `client/index.html`.
-2. **Compose pages** in `client/src/pages/`. Keep sections modular so they can be reused across routes.
-3. **Share primitives** via `client/src/components/`—extend shadcn/ui when needed instead of duplicating markup.
-4. **Keep styling consistent** by relying on existing Tailwind tokens (spacing, colors, typography).
-5. **Fetch external data** with `useEffect` if the site needs dynamic content from public APIs.
----
-
-## 🎨 Frontend Development Guidelines
-
-**UI & Styling:**
-- Prefer shadcn/ui components for interactions to keep a modern, consistent look; import from `@/components/ui/*` (e.g., `button`, `card`, `dialog`).
-- Compose Tailwind utilities with component variants for layout and states; avoid excessive custom CSS. Use built-in `variant`, `size`, etc. where available.
-- Preserve design tokens: keep the `@layer base` rules in `client/src/index.css`. Utilities like `border-border` and `font-sans` depend on them.
-- Consistent design language: use spacing, radius, shadows, and typography via tokens. Extract shared UI into `components/` for reuse instead of copy‑paste.
-- Accessibility and responsiveness: keep visible focus rings and ensure keyboard reachability; design mobile‑first with thoughtful breakpoints.
-- Theming: Choose dark/light theme to start with for ThemeProvider according to your design style (dark or light bg), then manage colors pallette with CSS variables in `client/src/index.css` instead of hard‑coding to keep global consistency.
-- Micro‑interactions and empty states: add motion, empty states, and icons tastefully to improve quality without distracting from content.
-- Navigation: For internal tools/admin panels, use persistent sidebar. For public-facing apps, design navigation based on content structure (top nav, side nav, or contextual)—ensure clear escape routes from all pages.
-- Placeholder UI elements: When adding structural placeholders (nav items, CTAs) for not-yet-implemented features, show toast on click ("Feature coming soon"). Inform user which elements are placeholders when presenting work.
-
-**React Best Practices:**
-- Never call setState/navigation in render phase → wrap in `useEffect`
-
-**Customized Defaults:**
-This template customizes some Tailwind/shadcn defaults for simplified usage:
-- `.container` is customized to auto-center and add responsive padding (see `index.css`). Use directly without `mx-auto`/`px-*`. For custom widths, use `max-w-*` with `mx-auto px-4`.
-- `.flex` is customized to have `min-width:0` and `min-height:0` by default
-- `button` variant `outline` uses transparent background (not `bg-background`). Add bg color class manually if needed.
-
----
-
-## 🎨 Design Guide
-
-When generating frontend UI, avoid generic patterns that lack visual distinction:
-- Avoid generic full-page centered layouts—prefer asymmetric/sidebar/grid structures for landing pages and dashboards
-- When user provides vague requirements, make creative design decisions (choose specific color palette, typography, layout approach)
-- Prioritize visual diversity: combine different design systems (e.g., one color scheme + different typography + another layout principle)
-- For landing pages: prefer asymmetric layouts, specific color values (not just "blue"), and textured backgrounds over flat colors
-- For dashboards: use defined spacing systems, soft shadows over borders, and accent colors for hierarchy
-
----
-
-## Animation Guide
-
-Bake motion taste in from the first line of code. Snappy, physically intuitive interactions are not a polish pass — they are part of the initial build.
-- Decide whether to animate at all: keyboard-initiated actions (command palettes, shortcuts) must be instant — never animate them. High-frequency interactions (hover, list nav) should be minimal. Reserve richer motion for occasional events (modals, drawers, toasts) and rare delight moments (onboarding).
-- Keep UI animations under 300ms. A 180ms dropdown feels significantly better than a 400ms one. Typical ranges: button press 100–160ms, tooltips 125–200ms, dropdowns 150–250ms, modals/drawers 200–500ms.
-- Use strong custom easings, not the weak CSS defaults. Default to a snappy ease-out for entering/exiting UI: `--ease-out: cubic-bezier(0.23, 1, 0.32, 1);`. For moving/morphing use `--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);`. NEVER use `ease-in` for UI animations — it feels sluggish.
-- Buttons must feel responsive: add `transform: scale(0.97)` on `:active` with a ~160ms ease-out transition so the UI confirms it heard the user.
-- Never animate from `scale(0)` — nothing in the real world appears from nothing. Start from `scale(0.95)` combined with `opacity: 0`.
-- Origin-aware popovers/dropdowns: scale in from the trigger point (e.g. `transform-origin: var(--radix-popover-content-transform-origin)`). Modals are the exception and stay centered.
-- Prefer CSS transitions over @keyframes for dynamic UI state. Transitions can be interrupted and reversed smoothly mid-flight; keyframes restart from zero and feel broken when interrupted.
-- Only animate `transform` and `opacity` for motion — they run on the GPU and skip layout/paint. Avoid animating `width`, `height`, `padding`, `margin`, `top/left` unless absolutely necessary.
-- Stagger grouped entrances by 30–80ms per item to create a cascading reveal instead of a wall of motion.
-- Asymmetric timing for deliberate actions: hold-to-confirm should be slow and linear on press (e.g. 2s linear), but release/cancel should snap back fast (~200ms ease-out).
-- Respect `prefers-reduced-motion`: gate non-essential motion behind `@media (prefers-reduced-motion: no-preference)`.
-
----
-
-## Pre-built Components
-
-Before implementing UI features, check if these components already exist:
-
-Maps:
-- `client/src/components/Map.tsx` - Google Maps integration with proxy authentication. Provides MapView component with onMapReady callback for initializing Google Maps services (Places, Geocoder, Directions, Drawing, etc.). All map functionality works directly in the browser.
-
-When implementing features that match these categories, MUST evaluate the component first to decide whether to use or customize it.
-
----
-
-## 🗺️ Maps Integration
-
-**CRITICAL: The Manus proxy provides FULL access to ALL Google Maps features** - including advanced drawing, heatmaps, Street View, all layers, Places API, etc. Do NOT ask users for Google Map API keys - authentication is automatic.
-
-**Implementation:**
-- Frontend: Import MapView from `client/src/components/Map.tsx` and initialize ANY Google Maps service (geocoding, directions, places, drawing, visualization, geometry, etc.) in the onMapReady callback. ALL Google Maps JavaScript API features work directly in the browser.
-
-NEVER use external map libraries or request API keys from users - the Manus proxy handles everything automatically with no feature limitations.
-
----
-
-## ✅ Launch Checklist
-- [ ] UI layout and navigation structure correct, all image src valid.
-- [ ] Success + error paths verified in the browser
-
----
-
-## Core File References
-
-`package.json`
-```tsx
-{
-  "name": "party_culture_pages",
-  "version": "1.0.0",
-  "type": "module",
-  "license": "MIT",
-  "scripts": {
-    "dev": "vite --host",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
-    "preview": "vite preview --host",
-    "check": "tsc --noEmit",
-    "format": "prettier --write ."
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
-    "@radix-ui/react-accordion": "^1.2.12",
-    "@radix-ui/react-alert-dialog": "^1.1.15",
-    "@radix-ui/react-aspect-ratio": "^1.1.7",
-    "@radix-ui/react-avatar": "^1.1.10",
-    "@radix-ui/react-checkbox": "^1.3.3",
-    "@radix-ui/react-collapsible": "^1.1.12",
-    "@radix-ui/react-context-menu": "^2.2.16",
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-hover-card": "^1.1.15",
-    "@radix-ui/react-label": "^2.1.7",
-    "@radix-ui/react-menubar": "^1.1.16",
-    "@radix-ui/react-navigation-menu": "^1.2.14",
-    "@radix-ui/react-popover": "^1.1.15",
-    "@radix-ui/react-progress": "^1.1.7",
-    "@radix-ui/react-radio-group": "^1.3.8",
-    "@radix-ui/react-scroll-area": "^1.2.10",
-    "@radix-ui/react-select": "^2.2.6",
-    "@radix-ui/react-separator": "^1.1.7",
-    "@radix-ui/react-slider": "^1.3.6",
-    "@radix-ui/react-slot": "^1.2.3",
-    "@radix-ui/react-switch": "^1.2.6",
-    "@radix-ui/react-tabs": "^1.1.13",
-    "@radix-ui/react-toggle": "^1.1.10",
-    "@radix-ui/react-toggle-group": "^1.1.11",
-    "@radix-ui/react-tooltip": "^1.2.8",
-    "axios": "^1.12.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
-    "embla-carousel-react": "^8.6.0",
-    "express": "^4.21.2",
-    "framer-motion": "^12.23.22",
-    "input-otp": "^1.4.2",
-    "lucide-react": "^0.453.0",
-    "nanoid": "^5.1.5",
-    "next-themes": "^0.4.6",
-    "react": "^19.2.1",
-    "react-day-picker": "^9.11.1",
-    "react-dom": "^19.2.1",
-    "react-hook-form": "^7.64.0",
-    "react-resizable-panels": "^3.0.6",
-    "recharts": "^2.15.2",
-    "sonner": "^2.0.7",
-    "streamdown": "^1.4.0",
-    "tailwind-merge": "^3.3.1",
-    "tailwindcss-animate": "^1.0.7",
-    "vaul": "^1.1.2",
-    "wouter": "^3.3.5",
-    "zod": "^4.1.12"
-  },
-  "devDependencies": {
-    "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
-    "@tailwindcss/typography": "^0.5.15",
-    "@tailwindcss/vite": "^4.1.3",
-    "@types/express": "4.17.21",
-    "@types/google.maps": "^3.58.1",
-    "@types/node": "^24.7.0",
-    "@types/react": "^19.2.1",
-    "@types/react-dom": "^19.2.1",
-    "@vitejs/plugin-react": "^5.0.4",
-    "add": "^2.0.6",
-    "autoprefixer": "^10.4.20",
-    "esbuild": "^0.25.0",
-    "pnpm": "^10.15.1",
-    "postcss": "^8.4.47",
-    "prettier": "^3.6.2",
-    "tailwindcss": "^4.1.14",
-    "tsx": "^4.19.1",
-    "tw-animate-css": "^1.4.0",
-    "typescript": "5.6.3",
-    "vite": "^7.1.7",
-    "vite-plugin-manus-runtime": "^0.0.57",
-    "vitest": "^2.1.4"
-  },
-  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
-  "pnpm": {
-    "patchedDependencies": {
-      "wouter@3.7.1": "patches/wouter@3.7.1.patch"
-    },
-    "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
-    }
-  }
-}
+# 代码格式化
+pnpm format
 ```
 
-`client/src/App.tsx`
-```tsx
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+## 构建与部署
 
+```bash
+# 标准构建 — 输出到 dist/ (pushState 路由，部署到 Web 服务器)
+pnpm build
 
-function Router() {
-  return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
+# 单文件构建 — 输出单 HTML 文件 (hash 路由，支持 file:// 协议)
+pnpm build:singlefile
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-}
-
-export default App;
+# 生产环境启动
+pnpm start
 ```
 
-`client/src/pages/Home.tsx`
-```tsx
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+- `pnpm build` 使用 Vite 构建客户端 + esbuild 打包 Express 服务端，输出到 `dist/`。
+- `pnpm build:singlefile` 设置 `VITE_HASH_ROUTING=true`，激活 hash 路由，生成可用 `file://` 直接打开的单文件。
+- 生产服务端口通过 `PORT` 环境变量配置，默认 3000。
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
- */
-export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+## 项目结构
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
-    </div>
-  );
-}
+```
+├── client/
+│   ├── index.html              # HTML 入口 (Google Fonts <link> 加在这里)
+│   ├── public/                 # 仅放 favicon、robots.txt 等小配置文件
+│   └── src/
+│       ├── main.tsx            # React 入口
+│       ├── App.tsx             # 路由定义 & 顶层 Provider 编排
+│       ├── index.css           # 全局样式、设计 Token、Tailwind 层
+│       ├── pages/              # 页面组件 (每个路由对应一个页面文件)
+│       ├── components/
+│       │   ├── ui/             # shadcn/ui 基础组件 (button、card、dialog …)
+│       │   ├── PartyLayout.tsx # 全局布局壳 (顶栏、侧栏、面包屑、页脚)
+│       │   ├── LoginJoinDialog.tsx       # 登录/注册弹窗
+│       │   ├── MembershipChoiceDialog.tsx # 首次登录会员路径选择
+│       │   ├── Map.tsx          # Google Maps 集成 (Manus 代理)
+│       │   └── ErrorBoundary.tsx
+│       ├── contexts/
+│       │   ├── MembershipContext.tsx  # 核心状态中心 (认证、会员、分会…)
+│       │   └── ThemeContext.tsx       # 主题切换 (当前锁定为 light)
+│       ├── hooks/              # 自定义 Hooks (useMobile、usePersistFn)
+│       └── lib/                # 工具函数 (cn() 等)
+├── server/
+│   └── index.ts                # 生产 Express 服务端
+├── shared/
+│   ├── constants.ts            # 领域共享常量 (分会、会议、费用…)
+│   └── const.ts                # 通用常量
+├── scripts/                    # 构建辅助脚本
+└── patches/                    # 依赖补丁 (wouter)
 ```
 
-`client/src/index.css`
-```tsx
-@import "tailwindcss";
-@import "tw-animate-css";
+### 路径别名
 
-@custom-variant dark (&:is(.dark *));
+| 别名 | 实际路径 |
+|------|---------|
+| `@/*` | `client/src/*` |
+| `@shared/*` | `shared/*` |
+| `@assets/*` | `attached_assets/*` |
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
+## 架构：双站点结构
 
-:root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
-}
+一个 React 应用中承载两个逻辑"子站"：
 
-.dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
-}
+### 1. 学会主站（Society Main Portal）
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  [type="button"]:not(:disabled),
-  [type="submit"]:not(:disabled),
-  [type="reset"]:not(:disabled),
-  a[href],
-  select:not(:disabled),
-  input[type="checkbox"]:not(:disabled),
-  input[type="radio"]:not(:disabled) {
-    @apply cursor-pointer;
-  }
-}
+面向公众的页面，包含学会介绍、组织机构、历史沿革、图库、国际交流等：
 
-@layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
-  .container {
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
-    padding-right: 1rem;
-  }
+| 路由 | 页面 | 说明 |
+|------|------|------|
+| `/` | SocietyHome | 学会首页 |
+| `/intro` | Intro | 学会介绍 |
+| `/structure` | Structure | 组织机构 |
+| `/history` | History | 历史沿革 |
+| `/gallery` | Gallery | 影像图库 |
+| `/society-announcements` | SocietyAnnouncements | 通知公告 |
+| `/international` | International | 国际交流 |
+| `/downloads-center` | DownloadsCenter | 下载中心 |
+| `/regulations` | Regulations | 规章制度 |
+| `/services` | Services | 会员服务 |
+| `/branches` | Branches | 分支机构 |
+| `/personal-center` | PersonalCenter | 个人中心 |
 
-  .flex {
-    min-height: 0;
-    min-width: 0;
-  }
+### 2. 党建文化子系统（Party Culture Sub-system）
 
-  @media (min-width: 640px) {
-    .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
-      padding-right: 1.5rem;
-    }
-  }
+面向内部的党建页面，均以 `/party` 为基础，含 12 个子页面：
 
-  @media (min-width: 1024px) {
-    .container {
-      padding-left: 2rem; /* 32px - desktop padding */
-      padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
-    }
-  }
-}
-```
+| 路由 | 页面 | 说明 |
+|------|------|------|
+| `/party` | Home | 党建首页 |
+| `/announcements` | Announcements | 通知公告 |
+| `/organizations` | Organizations | 组织架构 |
+| `/committees` | Committees | 专门委员会 |
+| `/work` | Work | 工作动态 |
+| `/activities` | Activities | 党建活动 |
+| `/team-building` | TeamBuilding | 组织建设 |
+| `/theory-study` | TheoryStudy | 理论学习 |
+| `/dynamics` | Dynamics | 党建动态 |
+| `/special-topics` | SpecialTopics | 专题专栏 |
+| `/exemplars` | Exemplars | 榜样力量 |
+| `/reporting` | Reporting | 党建述职 |
+| `/downloads` | Downloads | 下载专区 |
 
-`client/index.html`
-```tsx
-<!doctype html>
-<html lang="en">
+## 布局规则
 
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>{{project_title}}</title>    
-    <!-- THIS IS THE START OF A COMMENT BLOCK, BLOCK TO BE DELETED: Google Fonts here, example:
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    THIS IS THE END OF A COMMENT BLOCK, BLOCK TO BE DELETED -->
-  </head>
+`PartyLayout.tsx` 是所有页面的全局布局壳，根据 `isFullWidthPage` 判断布局模式：
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
-  </body>
+| 页面类型 | 布局方式 |
+|---------|---------|
+| 学会首页 (`/`)、会员服务 (`/services`) | 全宽，无侧栏 |
+| 党建页面 (`/party` 及其 12 个子路由) | **双栏布局**：左侧党建导航 + 右侧内容区 |
+| 其他页面 (介绍、组织、历史等) | 全宽 + 面包屑导航 |
 
-</html>
-```
+> 新增需要全宽展示的页面，必须在 `PartyLayout.tsx` 的 `isFullWidthPage` 中添加对应的路径判断。
 
-`server/index.ts`
-```tsx
-import express from "express";
-import { createServer } from "http";
-import path from "path";
-import { fileURLToPath } from "url";
+## 核心状态管理：MembershipContext
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+`MembershipContext` (`client/src/contexts/MembershipContext.tsx`) 是整个应用的状态中枢，管理：
 
-async function startServer() {
-  const app = express();
-  const server = createServer(app);
+### 认证
+- 注册 / 登录 / 登出 / 注销账号
+- 基于 localStorage 的模拟用户数据库（`paleo_user_db`）
+- 登录弹窗为 `LoginJoinDialog.tsx`，支持登录、注册、忘记密码三个 Tab
+- 登出：顶栏用户下拉中的"安全退出"，清除所有 per-user 状态并跳转首页
+- 注销账号："注销账号"永久删除用户数据（PersonalCenter 中两步确认）
 
-  // Serve static files from dist/public in production
-  const staticPath =
-    process.env.NODE_ENV === "production"
-      ? path.resolve(__dirname, "public")
-      : path.resolve(__dirname, "..", "dist", "public");
+### 会员双路径（用户类型）
 
-  app.use(express.static(staticPath));
+首次登录时必须通过 `MembershipChoiceDialog` 选择：
 
-  // Handle client-side routing - serve index.html for all routes
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(staticPath, "index.html"));
-  });
+| 路径 | userType | 说明 |
+|------|----------|------|
+| **路径 A — 非会员** | `non_member` | 无需缴费，立即绑定分会、报名会议，**会议费按非会员价**（会员价 × 1.1） |
+| **路径 B — 正式会员** | `member` | 需完成两阶段缴费流程（凭证上传→审核→发票上传→审核→激活），审核通过后享受**会员价** |
 
-  const port = process.env.PORT || 3000;
+- 注册后初始身份为 `regular`（普通用户），首次登录强制选择路径
+- 非会员可随时通过会员服务页升级为正式会员
+- `userType` 存于 localStorage：`paleo_user_type_{email}`
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-  });
-}
+### 学会会费（仅 member 用户）
 
-startServer().catch(console.error);
-```
----
+两阶段缴费审核流程：凭证上传 → 审核 → 发票上传 → 审核 → 完成。
+费用标准：普通 ¥200 / 学生 ¥100 / 团体会员 ¥5000。
 
-## Common Pitfalls
+### 分会绑定
 
-### Infinite loading loops from unstable references
-**Anti-pattern:** Creating new objects/arrays in render that are used as query inputs
-```tsx
-// ❌ Bad: New Date() creates new reference every render → infinite queries
-const { data } = trpc.items.getByDate.useQuery({
-  date: new Date(), // ← New object every render!
-});
+非会员和正式会员均可绑定 / 解绑专业分会；`regular` 用户不可操作。
 
-// ❌ Bad: Array/object literals in query input
-const { data } = trpc.items.getByIds.useQuery({
-  ids: [1, 2, 3], // ← New array reference every render!
-});
-```
+### 会议报名
 
-**Correct approach:** Stabilize references with useState/useMemo
-```tsx
-// ✅ Good: Initialize once with useState
-const [date] = useState(() => new Date());
-const { data } = trpc.items.getByDate.useQuery({ date });
+两阶段会议费流程 → 提交表单 → 上传摘要。
+费用通过 `getConferenceFee(confId, userType)` 自动按用户类型计算。
 
-// ✅ Good: Memoize complex inputs
-const ids = useMemo(() => [1, 2, 3], []);
-const { data } = trpc.items.getByIds.useQuery({ ids });
-```
+### 通知
 
-**Why this happens:** TRPC queries trigger when input references change. Objects/arrays created in render have new references each time, causing infinite re-fetches.
+顶栏通知铃铛，支持已读/未读跟踪。
 
-### Navigation dead-ends in subpages
-**Problem:** Creating nested routes without escape routes—no header nav, no sidebar, no back button.
+> 所有 per-user 状态持久化在 localStorage 中，key 均以 `paleo_` 为前缀。
 
-**Root cause:** Implementing individual pages before establishing global layout structure.
+## 视觉设计：地层次韵 (Strata & Heritage)
 
-**Solution:** Define layout wrapper in App.tsx first, then build pages inside it. For admin tools use DashboardLayout; for detail pages add back button with `router.back()`.
+| 角色 | 色值 | 用途 |
+|------|------|------|
+| 地层深蓝 (Primary) | `#002B49` | 导航栏、标题 |
+| 党建红 (Party Red) | `#C41E3A` | 强调边框、按钮、侧栏激活态 |
+| 典雅金 (Accent Gold) | `#D9C5A0` | 高亮、页脚标题 |
+| 纸色亮白 (Paper Bright) | `#FCFAF7` | 页面背景 |
+| 化石石色 (Fossil Stone) | `#E5E1DA` | 边框、卡片边缘 |
 
-### Invisible text from theme/color mismatches
+- 边框圆角: `0.25rem` — 方正学院风
+- 主题固定为 `light` 模式，不可切换
+- 自定义 CSS 工具类：`.party-gradient`、`.party-card-border`、`.party-text`、`.xingkai-script`（行楷 Logo 字体）
+- 设计理念详见 `ideas.md`
 
-**Root cause:** Semantic colors (`bg-background`, `text-foreground`) are CSS variables that resolve based on ThemeProvider's active theme. Mismatches cause invisible text.
+## 开发要点
 
-**Two critical rules:**
+### 组件体系
+- `client/src/components/ui/` 下为 shadcn/ui 基础组件，**禁止重复实现** — 需要时扩展它们
+- 新页面放在 `client/src/pages/`，新路由在 `App.tsx` 中注册
 
-1. **Match theme to CSS variables:** If `defaultTheme="dark"` in App.tsx, ensure `.dark {}` in index.css has dark background + light foreground values
-2. **Always pair bg with text:** When using `bg-{semantic}`, MUST also use `text-{semantic}-foreground` (not automatic - text inherits from parent otherwise)
+### 路由
+- 使用 wouter 的 `<Link href="...">` 导航，**不要嵌套 `<a>` 于 `<Link>` 内**
+- `<Select.Item>` 必须提供非空的 `value` prop
 
-**Quick reference:**
-```tsx
-// ✅ Theme + CSS alignment
-<ThemeProvider defaultTheme="dark">  {/* Must match .dark in index.css */}
-  <div className="bg-background text-foreground">...</div>
-</ThemeProvider>
+### 样式
+- `.container` 已自定义为自动居中 + 响应式内边距，直接用 `<div className="container">` 即可
+- `.flex` 已预设 `min-width:0` 和 `min-height:0`
+- 使用语义色类名时必须配对：`bg-primary` + `text-primary-foreground`
 
-// ✅ Required class pairs
-<div className="bg-popover text-popover-foreground">...</div>
-<div className="bg-card text-card-foreground">...</div>
-<div className="bg-accent text-accent-foreground">...</div>
-```
+### 图标
+- 界面 chrome 使用 `material-symbols-outlined` 类
+- 组件图标使用 `lucide-react`
 
-### Nested anchor tags in Link components
-**Problem:** Wrapping `<a>` tags inside another `<a>` or wouter's `<Link>` creates nested anchors and runtime errors.
+### 图片/媒体
+- 图片必须通过 Manus CLI 上传，不要放在 `client/public/` 中
+- `client/public/` 只放 `favicon.ico`、`robots.txt` 等配置文件
 
-**Solution:** Pass children directly to Link—it already renders an `<a>` internally.
-```tsx
-// ❌ Bad: <Link><a>...</a></Link> or <a><a>...</a></a>
-// ✅ Good: <Link>...</Link> or just <a>...</a>
-```
-### Empty `Select.Item` values
+### 共享常量
+- 分会 ID、会议费用、状态枚举等领域的真实数据源在 `shared/constants.ts`
+- 页面和 Context 中**不要硬编码**这些值 — 从 shared 导入使用
 
-**Rule:** Every `<Select.Item>` must have a non-empty `value` prop—never `""`, `undefined`, or omitted.
+### Google 字体
+- 在 `client/index.html` 中通过 `<link>` 引入，**不要**在 CSS 中使用 `@import`
 
-**Rule:** Use sonner for toasts; do not add react-toastify or @radix-ui/react-toast
+## 环境变量
 
-**Rule:** If you put placeholder components for App.tsx routes, you MUST replace them with actual components after your implementation.
+| 变量 | 说明 |
+|------|------|
+| `PORT` | 生产服务端口 (默认 3000) |
+| `VITE_HASH_ROUTING` | 启用 hash 路由 (singlefile 构建自动设置) |
+| `NODE_ENV` | `production` 时启用生产模式 |
+
+## 补充说明
+
+- 项目暂无自动化测试（`vitest` 已在 devDependencies 中但无测试文件）
+- `patches/wouter@3.7.1.patch` 是 wouter 的一个补丁修复
+- Vite 开发服务器包含自定义插件：Manus Runtime 桥接、JSX 位置注入、调试日志收集、存储代理

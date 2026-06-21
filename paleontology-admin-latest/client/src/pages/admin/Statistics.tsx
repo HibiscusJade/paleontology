@@ -144,7 +144,8 @@ function FeeBreakdownBarChart({ breakdown }: { breakdown: FeeBreakdown }) {
 // ============================================================================
 
 function GlobalStatistics({ stats }: { stats: GlobalStats }) {
-  const { getAllConferences } = useAdmin();
+  const { getAllConferences, generateExportZip } = useAdmin();
+  const [isExporting, setIsExporting] = useState(false);
   const allConfs = getAllConferences();
 
   // Per-society conference fee bar chart data
@@ -170,7 +171,19 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
     return data;
   }, [stats]);
 
-  const handleExport = () => toast("导出功能将在 Phase 5 实现");
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const blob = await generateExportZip({ scope: "global", scopeId: "all" });
+      const fileName = `export_global_all_${new Date().toISOString().split("T")[0]}.zip`;
+      saveAs(blob, fileName);
+      toast.success("全局导出成功");
+    } catch (e) {
+      toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -314,9 +327,9 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
             <CardTitle className="text-base">会议费汇总表</CardTitle>
             <CardDescription>所有会议的报名和费用情况</CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={handleExport}>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
             <Download className="h-4 w-4 mr-2" />
-            导出
+            {isExporting ? "导出中…" : "导出"}
           </Button>
         </CardHeader>
         <CardContent>
@@ -369,8 +382,9 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
 // ============================================================================
 
 function SocietyStatistics() {
-  const { getSocietyStats, getAllConferences } = useAdmin();
+  const { getSocietyStats, getAllConferences, generateExportZip } = useAdmin();
   const [selectedSociety, setSelectedSociety] = useState<string>("");
+  const [isExporting, setIsExporting] = useState(false);
   const allConfs = getAllConferences();
 
   const societyOptions = useMemo(() => {
@@ -390,7 +404,21 @@ function SocietyStatistics() {
     return allConfs.filter(c => c.branchId === selectedSociety);
   }, [selectedSociety, allConfs]);
 
-  const handleExport = () => toast("导出功能将在 Phase 5 实现");
+  const handleExport = async () => {
+    if (!selectedSociety) return;
+    setIsExporting(true);
+    try {
+      const blob = await generateExportZip({ scope: "branch", scopeId: selectedSociety });
+      const societyName = ALL_SOCIETY_UNITS[selectedSociety] || selectedSociety;
+      const fileName = `export_branch_${societyName.slice(0, 20)}_${new Date().toISOString().split("T")[0]}.zip`;
+      saveAs(blob, fileName);
+      toast.success("导出成功");
+    } catch (e) {
+      toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -407,9 +435,9 @@ function SocietyStatistics() {
           </SelectContent>
         </Select>
         {stats && (
-          <Button variant="outline" size="sm" onClick={handleExport}>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
             <Download className="h-4 w-4 mr-2" />
-            导出
+            {isExporting ? "导出中…" : "导出"}
           </Button>
         )}
       </div>

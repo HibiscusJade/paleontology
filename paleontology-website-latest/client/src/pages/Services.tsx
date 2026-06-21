@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useMembership } from "../contexts/MembershipContext";
 import { toast } from "sonner";
 import LoginJoinDialog from "../components/LoginJoinDialog";
-import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_FEE_MEMBER, getConferenceFeeConfig as getConfiguredFeeConfig, type ConferenceFeeConfig, CONFERENCE_FEE_TYPE_LABEL, type ConferenceFeeType, ALL_SOCIETY_UNITS, ACCOMMODATION_TYPE, ACCOMMODATION_TYPE_LABEL, type AccommodationType, FIELD_TRIP_PHASE_LABEL, type FieldTripRoute, type FieldTripSelections, createEmptyFieldTripSelections } from "@shared/constants";
+import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_STATUS, getConferenceFeeConfig as getConfiguredFeeConfig, type ConferenceFeeConfig, CONFERENCE_FEE_TYPE_LABEL, type ConferenceFeeType, ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, isSocietyAccessible, isDeadlinePassed, sortConferencesSocietyFirst, ACCOMMODATION_TYPE_LABEL, type AccommodationType, FIELD_TRIP_PHASE_LABEL, type FieldTripRoute, type FieldTripSelections, createEmptyFieldTripSelections } from "@shared/constants";
 
 export default function Services() {
   const [location, setLocation] = useLocation();
@@ -45,6 +45,7 @@ export default function Services() {
     getConferenceFeeConfig,
     canDownloadStampedNotice,
     canDownloadAbstractTemplate,
+    canAccessConferenceForm,
     getConferenceFileUrl,
     // Phase 4: 摘要/住宿/野外
     uploadAbstractFile,
@@ -59,12 +60,18 @@ export default function Services() {
 
   // Parse URL query parameter for tab selection (e.g. /services?tab=member)
   const [activeTab, setActiveTab] = useState<"branches" | "member" | "conference" | "international" | "science" | "awards" | "main">("main");
+  const [conferenceBranchFilter, setConferenceBranchFilter] = useState<string | null>(null);
+  const [noticePreviewConfId, setNoticePreviewConfId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
     if (tabParam && ["branches", "member", "conference", "international", "science", "awards", "main"].includes(tabParam)) {
       setActiveTab(tabParam as any);
+    }
+    const branchParam = params.get("branch");
+    if (branchParam) {
+      setConferenceBranchFilter(branchParam);
     }
   }, [location]);
 
@@ -114,9 +121,6 @@ export default function Services() {
   const [appFlowStep, setAppFlowStep] = useState(0); // 0=not started, 1=download template, 2=upload, 3=submitted
   const [memberAppFile, setMemberAppFile] = useState<string | null>(null);
   const [memberAppFileName, setMemberAppFileName] = useState<string>("");
-
-  // Conference branch filter (set when clicking "查看该分会会议" from member tab)
-  const [conferenceBranchFilter, setConferenceBranchFilter] = useState<string | null>(null);
 
   // Sync profile data when editing conference form
   useEffect(() => {
@@ -363,8 +367,16 @@ export default function Services() {
 
   const mockVoucherUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuCYIKxophjI9VUuetJuvkK5GcwQg2Yx4mJ6ad4thQyAGyXg_aJDk8e6Pqsg_WjOL9LtO7UbUlGghcpyhwbvGagEsopXe-xqv4bzd2K9b4nmSyIIjSnUGX0E7hCfWWyovFuLLGrcmbFHTdTvRvOWx_9rVuc9AJcscqZNQq5wj1Jfg6V4QDrOrL-Rdx8NywF5ELn7lY4rzQHwhGRxrq3gBIUZscn5alwj4Ep09ZvZY_jZP8MSsqxALmnA_YG9MZikpA497cfcoKNoS38";
 
-  const getMemberFeeOnly = (confId: string) => CONFERENCE_FEE_MEMBER[confId] ?? 1000;
-  const getNonMemberFeeOnly = (confId: string) => Math.round((CONFERENCE_FEE_MEMBER[confId] ?? 1000) * 1.1);
+  const getMemberFeeOnly = (confId: string) => getConferenceFeeConfig(confId).nonStudentMember;
+  const getNonMemberFeeOnly = (confId: string) => getConferenceFeeConfig(confId).nonStudentNonMember;
+
+  const openConferenceForm = (confId: string) => {
+    if (!canAccessConferenceForm(confId)) {
+      toast.error("缴费终审确认（confirmed）后方可填写参会信息。");
+      return;
+    }
+    setEditingReg(confId);
+  };
 
   // ==========================================================================
   // RENDER: MAIN PORTAL (code3)
@@ -1328,6 +1340,23 @@ export default function Services() {
     if (editingReg) {
       const conf = conferences.find(c => c.id === editingReg);
       const reg = conferenceRegs[editingReg] || { status: "unpaid" };
+
+      if (!canAccessConferenceForm(editingReg)) {
+        return (
+          <div className="max-w-3xl mx-auto py-12 px-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+              <span className="material-symbols-outlined text-4xl text-amber-600 mb-3 block">lock</span>
+              <p className="font-bold text-amber-800 text-sm mb-2">参会表单尚未开放</p>
+              <p className="text-xs text-amber-700 mb-4">
+                当前状态：{CONFERENCE_STATUS_LABEL[reg.status] || reg.status}。请完成凭证→发票两阶段缴费并经终审确认后再填写。
+              </p>
+              <button onClick={() => setEditingReg(null)} className="px-6 py-2 border border-amber-300 text-amber-800 rounded-lg font-bold text-xs">
+                返回
+              </button>
+            </div>
+          </div>
+        );
+      }
 
       const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -2466,7 +2495,7 @@ export default function Services() {
     const visibleConfs = conferenceBranchFilter
       ? conferences.filter(c => c.branchId === conferenceBranchFilter)
       : isActiveMember
-        ? conferences.filter(c => boundBranches.includes(c.branchId))
+        ? conferences.filter(c => isSocietyAccessible(boundBranches, c.branchId))
         : conferences;
 
     const statusColor: Record<string, string> = {
@@ -2570,7 +2599,7 @@ export default function Services() {
         <div className="space-y-4">
           {visibleConfs.map(c => {
             const reg = conferenceRegs[c.id];
-            const isBound = boundBranches.includes(c.branchId);
+            const isBound = isSocietyAccessible(boundBranches, c.branchId);
             return (
               <div key={c.id} className="bg-white border border-[#E5E1DA] rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex flex-col md:flex-row md:items-start gap-4">

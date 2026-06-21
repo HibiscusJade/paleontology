@@ -186,6 +186,12 @@ export const VALID_BRANCH_IDS = new Set(BRANCH_IDS);
 /** 所有学会单元 ID 列表（总学会 + 11 分会） */
 export const ALL_SOCIETY_IDS: string[] = Object.keys(ALL_SOCIETY_UNITS);
 
+/** 总学会对所有注册用户默认可访问（虚拟绑定，无需写入 boundBranches） */
+export function isSocietyAccessible(boundBranchIds: string[], societyId: string): boolean {
+  if (societyId === TOTAL_SOCIETY_ID) return true;
+  return boundBranchIds.includes(societyId);
+}
+
 /** 会议 ID → 所属学会/分会 ID 映射 */
 export const CONFERENCE_BRANCH_MAP: Record<string, string> = {
   "conf-1": "wtxfh",    // 微体学分会
@@ -374,4 +380,25 @@ export interface FieldTripSelections {
 /** 创建空的野外选择 */
 export function createEmptyFieldTripSelections(): FieldTripSelections {
   return { pre: [], during: [], post: [] };
+}
+
+// ── Phase F1: 截止判断与状态语义 ───────────────────────────────────────────
+
+/** 缴费终审通过后可下载盖章通知/摘要模板、填写参会表单 */
+export const CONFIRMED_PAYMENT_STATUSES = [CONFERENCE_STATUS.CONFIRMED] as const;
+
+/** 判断截止日期是否已过（YYYY-MM-DD，含当天仍可操作） */
+export function isDeadlinePassed(deadline: string | undefined | null): boolean {
+  if (!deadline) return false;
+  const today = new Date().toISOString().split("T")[0];
+  return today > deadline;
+}
+
+/** 总学会会议置顶排序 */
+export function sortConferencesSocietyFirst<T extends { branchId: string }>(confs: T[]): T[] {
+  return [...confs].sort((a, b) => {
+    if (a.branchId === TOTAL_SOCIETY_ID && b.branchId !== TOTAL_SOCIETY_ID) return -1;
+    if (b.branchId === TOTAL_SOCIETY_ID && a.branchId !== TOTAL_SOCIETY_ID) return 1;
+    return 0;
+  });
 }

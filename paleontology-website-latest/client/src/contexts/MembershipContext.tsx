@@ -13,9 +13,13 @@ import {
   type FieldTripSelections,
   createEmptyFieldTripSelections,
   getMembershipFee as getConfiguredMembershipFee,
-  getConferenceFee as getConfiguredConferenceFee,
   getConferenceFeeConfig as getConfiguredFeeConfig,
+  getConferenceFeeByType,
   deriveFeeType,
+  isSocietyAccessible,
+  ALL_SOCIETY_UNITS,
+  CONFIRMED_PAYMENT_STATUSES,
+  isDeadlinePassed,
 } from "@shared/constants";
 
 // ============================================================================
@@ -103,6 +107,9 @@ export interface ConferenceReg {
   accommodationType?: AccommodationType;
   // Phase 4: 野外报名
   fieldTripSelections?: FieldTripSelections;
+  // 报名时锁定的费用类型与金额（不受后续身份变更影响）
+  feeType?: ConferenceFeeType;
+  lockedAmount?: number;
   /** @deprecated 旧字段兼容，Phase 2 移除 */
   conferenceForm?: any;
   /** @deprecated 旧字段兼容，Phase 2 移除 */
@@ -227,7 +234,8 @@ interface MembershipContextType {
   // Phase 2: File download helpers
   canDownloadStampedNotice: (confId: string) => boolean;
   canDownloadAbstractTemplate: (confId: string) => boolean;
-  getConferenceFileUrl: (confId: string, fileType: "stampedNotice" | "abstractTemplate") => string | null;
+  canAccessConferenceForm: (confId: string) => boolean;
+  getConferenceFileUrl: (confId: string, fileType: "stampedNotice" | "abstractTemplate" | "publicNotice") => string | null;
 
   // Phase 6: 入会/退会申请
   membershipApplication: MembershipApplication | null;
@@ -673,8 +681,15 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const confTitle = getConferenceTitle(confId);
     const confBranchId = getConferenceBranchId(confId);
-    if (confBranchId && !boundBranches.includes(confBranchId)) {
+    if (confBranchId && !isSocietyAccessible(boundBranches, confBranchId)) {
       toast.error(`您需要先绑定该会议所属的分会（${getBranchName(confBranchId)}），才能缴纳会议注册费。`);
+      return;
+    }
+
+    const feeType = deriveFeeType(userType, currentUser.isStudent ?? (currentUser.role === "学生"));
+    const lockedAmount = getConferenceFeeByType(confId, feeType);
+    if (lockedAmount <= 0) {
+      toast.error("当前身份暂不支持报名该会议，请联系学会管理员。");
       return;
     }
 
@@ -690,6 +705,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }),
       status: "voucher_submitted",
       paymentVoucher: voucherUrl,
+      feeType,
+      lockedAmount,
       voucherSubmitTime: new Date().toLocaleString("zh-CN"),
       lastUpdated: new Date().toLocaleString("zh-CN")
     };
@@ -756,15 +773,15 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!currentUser) return;
 
     const currentReg = conferenceRegs[confId];
-    if (!currentReg || currentReg.status !== "invoice_pending") {
-      toast.error("请先缴纳会议注册费并等待凭证初审通过后再填写参会信息。");
+    if (!currentReg || currentReg.status !== CONFERENCE_STATUS.CONFIRMED) {
+      toast.error("请先完成会议费两阶段审核（凭证→发票→终审确认）后再填写参会信息。");
       return;
     }
 
     const updatedReg: ConferenceReg = {
       ...currentReg,
       ...formData,
-      status: "invoice_pending", // 保持状态不变，仅更新表单数据
+      status: CONFERENCE_STATUS.CONFIRMED,
       lastUpdated: new Date().toLocaleString("zh-CN")
     };
 
@@ -1545,7 +1562,12 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const getConferenceFeeAction = (confId: string): number => {
-    return getConfiguredConferenceFee(confId, userType);
+    const existingReg = conferenceRegs[confId];
+    if (existingReg?.lockedAmount != null && existingReg.lockedAmount > 0) {
+      return existingReg.lockedAmount;
+    }
+    const feeType = deriveFeeType(userType, currentUser?.isStudent ?? (currentUser?.role === "学生"));
+    return getConferenceFeeByType(confId, feeType);
   };
 
   // Phase 0: New fee type API
@@ -1557,28 +1579,26 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return getConfiguredFeeConfig(confId);
   };
 
-  // Phase 2: File download helpers — 盖章通知和摘要模板仅在缴费确认后解锁
-  const canDownloadStampedNotice = (confId: string): boolean => {
+  // Phase F1: File download helpers — 盖章通知和摘要模板仅在缴费终审 confirmed 后解锁
+  const isConferenceConfirmed = (confId: string): boolean => {
     const reg = conferenceRegs[confId];
     if (!reg) return false;
-    // 仅缴费终审通过 (confirmed) 后才可下载盖章通知
-    return reg.status === "confirmed" || reg.status === "approved_invoice" || reg.status === "active";
+    return CONFIRMED_PAYMENT_STATUSES.includes(reg.status as typeof CONFIRMED_PAYMENT_STATUSES[number]);
   };
 
-  const canDownloadAbstractTemplate = (confId: string): boolean => {
-    const reg = conferenceRegs[confId];
-    if (!reg) return false;
-    // 仅缴费终审通过 (confirmed) 后才可下载摘要模板
-    return reg.status === "confirmed" || reg.status === "approved_invoice" || reg.status === "active";
-  };
+  const canDownloadStampedNotice = (confId: string): boolean => isConferenceConfirmed(confId);
 
-  const getConferenceFileUrl = (confId: string, fileType: "stampedNotice" | "abstractTemplate"): string | null => {
-    // Stub — data will come from ConferenceRecord in Phase 2
+  const canDownloadAbstractTemplate = (confId: string): boolean => isConferenceConfirmed(confId);
+
+  const canAccessConferenceForm = (confId: string): boolean => isConferenceConfirmed(confId);
+
+  const getConferenceFileUrl = (confId: string, fileType: "stampedNotice" | "abstractTemplate" | "publicNotice"): string | null => {
     const confs = JSON.parse(localStorage.getItem("paleo_admin_conferences_db") || "[]");
-    const conf = confs.find((c: any) => c.id === confId);
+    const conf = confs.find((c: { id: string }) => c.id === confId);
     if (!conf) return null;
     if (fileType === "stampedNotice") return conf.stampedNoticeUrl || null;
-    return conf.abstractTemplateUrl || null;
+    if (fileType === "abstractTemplate") return conf.abstractTemplateUrl || null;
+    return conf.publicNoticeUrl || null;
   };
 
   // ==========================================
@@ -1610,6 +1630,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const getBranchName = (id: string): string => {
+    if (ALL_SOCIETY_UNITS[id]) return ALL_SOCIETY_UNITS[id];
     // 优先使用 shared/constants 的 BRANCH_MAP（字符串 ID，如 "wtxfh"）
     const stringMap: { [key: string]: string } = {
       "gwjzdwxfh": "古无脊椎动物学分会",
@@ -1677,23 +1698,8 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return map[confId] || null;
   };
 
-  /** 获取会议费金额（用于 OCR 比对） */
-  const getConferenceFee = (confId: string): number => {
-    const map: { [key: string]: number } = {
-      "conf-1": 1200,
-      "conf-2": 800,
-      "conf-3": 1500,
-      "conf-4": 1000,
-      "conf-5": 900,
-      "conf-6": 1100,
-      "conf-7": 600,
-      "conf-8": 500,
-      "demo-conf": 300,
-      "conf-zgswxh-1": 1500,
-      "conf-zgswxh-2": 2000,
-    };
-    return map[confId] || 1000;
-  };
+  /** 获取会议费金额（用于 OCR 比对，优先使用报名时锁定的金额） */
+  const getConferenceFee = (confId: string): number => getConferenceFeeAction(confId);
 
   return (
     <MembershipContext.Provider value={{
@@ -1745,6 +1751,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       getConferenceFeeConfig: getConferenceFeeConfigAction,
       canDownloadStampedNotice,
       canDownloadAbstractTemplate,
+      canAccessConferenceForm,
       getConferenceFileUrl,
       // Phase 6: 入会/退会申请
       membershipApplication,
