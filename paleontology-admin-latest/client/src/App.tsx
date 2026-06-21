@@ -1,4 +1,4 @@
-import { Router, Route, Switch } from "wouter";
+import { Router, Route, Switch, Redirect } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { AdminProvider } from "@/contexts/AdminContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,6 +17,7 @@ import ConferenceManagement from "@/pages/admin/ConferenceManagement";
 import Statistics from "@/pages/admin/Statistics";
 import FinanceRecords from "@/pages/admin/FinanceRecords";
 import BranchManagement from "@/pages/admin/BranchManagement";
+import ContentManagement from "@/pages/admin/cms/ContentManagement";
 import NotFound from "@/pages/admin/NotFound";
 
 function WrappedPage({ children }: { children: React.ReactNode }) {
@@ -82,6 +83,16 @@ export default function App() {
             <BranchManagement />
           </WrappedPage>
         )}
+      </Route>
+      <Route path="/admin/cms/:section">
+        {() => (
+          <WrappedPage>
+            <ContentManagement />
+          </WrappedPage>
+        )}
+      </Route>
+      <Route path="/admin/cms">
+        <Redirect to="/admin/cms/banners" />
       </Route>
       <Route path="/">
         {() => <LoginPage />}

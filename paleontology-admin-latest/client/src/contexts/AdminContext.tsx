@@ -529,6 +529,24 @@ const ROUTE_PERMISSIONS: Record<string, AdminRole[]> = {
   "/admin/statistics": ["super_admin", "branch_admin"],
   "/admin/finance": ["super_admin", "finance_reviewer"],
   "/admin/branches": ["super_admin"],
+  "/admin/cms": ["super_admin", "branch_admin"],
+  "/admin/cms/banners": ["super_admin", "branch_admin"],
+  "/admin/cms/news": ["super_admin", "branch_admin"],
+  "/admin/cms/announcements": ["super_admin", "branch_admin"],
+  "/admin/cms/pages": ["super_admin", "branch_admin"],
+  "/admin/cms/personnel": ["super_admin", "branch_admin"],
+  "/admin/cms/media": ["super_admin", "branch_admin"],
+  "/admin/cms/settings": ["super_admin"],
+  "/admin/cms/party": ["super_admin"],
+  "/admin/cms/gallery": ["super_admin", "branch_admin"],
+  "/admin/cms/awards": ["super_admin", "branch_admin"],
+  "/admin/cms/science": ["super_admin", "branch_admin"],
+  "/admin/cms/international": ["super_admin"],
+  "/admin/cms/tech-rewards": ["super_admin"],
+  "/admin/cms/timeline": ["super_admin"],
+  "/admin/cms/downloads": ["super_admin", "branch_admin"],
+  "/admin/cms/regulations": ["super_admin"],
+  "/admin/cms/branch": ["branch_admin"],
 };
 
 const ALL_MENU_ITEMS: MenuItem[] = [
@@ -547,6 +565,58 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { path: "/admin/statistics", label: "数据统计", icon: "BarChart3" },
   { path: "/admin/finance", label: "财务记录", icon: "Receipt" },
   { path: "/admin/branches", label: "分会管理", icon: "Building2" },
+  {
+    path: "/admin/cms",
+    label: "内容管理",
+    icon: "FileText",
+    children: [
+      {
+        path: "/admin/cms-group/home",
+        label: "首页",
+        icon: "LayoutDashboard",
+        children: [
+          { path: "/admin/cms/banners", label: "轮播图", icon: "Image" },
+          { path: "/admin/cms/news", label: "新闻动态", icon: "Newspaper" },
+        ],
+      },
+      {
+        path: "/admin/cms-group/intro",
+        label: "学会简介",
+        icon: "FileText",
+        children: [
+          { path: "/admin/cms/pages", label: "页面内容", icon: "Layout" },
+          { path: "/admin/cms/awards", label: "获奖成果", icon: "Award" },
+        ],
+      },
+      {
+        path: "/admin/cms-group/structure",
+        label: "组织机构",
+        icon: "Building2",
+        children: [
+          { path: "/admin/cms/personnel", label: "人员信息", icon: "Users" },
+          { path: "/admin/cms/branch", label: "分会内容", icon: "Building2" },
+        ],
+      },
+      {
+        path: "/admin/cms-group/services",
+        label: "学会服务",
+        icon: "Handshake",
+        children: [
+          { path: "/admin/cms/science", label: "科学传播", icon: "BookOpen" },
+          { path: "/admin/cms/tech-rewards", label: "科技奖励", icon: "Trophy" },
+        ],
+      },
+      { path: "/admin/cms/party", label: "党建文化", icon: "Flag" },
+      { path: "/admin/cms/timeline", label: "学会沿革", icon: "Clock" },
+      { path: "/admin/cms/gallery", label: "历史相册", icon: "Images" },
+      { path: "/admin/cms/announcements", label: "会员公告", icon: "Megaphone" },
+      { path: "/admin/cms/international", label: "国际交流", icon: "Globe" },
+      { path: "/admin/cms/downloads", label: "资料下载", icon: "Download" },
+      { path: "/admin/cms/regulations", label: "规章条例", icon: "BookOpen" },
+      { path: "/admin/cms/media", label: "媒体库", icon: "FolderOpen" },
+      { path: "/admin/cms/settings", label: "站点配置", icon: "Settings" },
+    ],
+  },
 ];
 
 // ============================================================================
@@ -1688,27 +1758,27 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [adminRole]
   );
 
-  const getAllowedMenuItems = useCallback((): MenuItem[] => {
-    return ALL_MENU_ITEMS
-      .map(item => {
-        // If item has children, filter children by permission
-        if (item.children && item.children.length > 0) {
-          const allowedChildren = item.children.filter(child => {
-            const allowed = ROUTE_PERMISSIONS[child.path];
-            return allowed && allowed.includes(adminRole);
-          });
-          // Only include parent if at least one child is allowed
-          if (allowedChildren.length > 0) {
+  const filterMenuTree = useCallback(
+    (items: MenuItem[]): MenuItem[] => {
+      return items
+        .map(item => {
+          if (item.children && item.children.length > 0) {
+            const allowedChildren = filterMenuTree(item.children);
+            if (allowedChildren.length === 0) return null;
             return { ...item, children: allowedChildren };
           }
-          return null;
-        }
-        // Leaf item: check permission directly
-        const allowed = ROUTE_PERMISSIONS[item.path];
-        return allowed && allowed.includes(adminRole) ? item : null;
-      })
-      .filter((item): item is MenuItem => item !== null);
-  }, [adminRole]);
+          const allowed = ROUTE_PERMISSIONS[item.path];
+          if (!allowed || !allowed.includes(adminRole)) return null;
+          return item;
+        })
+        .filter((item): item is MenuItem => item !== null);
+    },
+    [adminRole]
+  );
+
+  const getAllowedMenuItems = useCallback((): MenuItem[] => {
+    return filterMenuTree(ALL_MENU_ITEMS);
+  }, [filterMenuTree]);
 
   // ==========================================
   // NOTIFICATIONS
