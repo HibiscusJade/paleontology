@@ -12,9 +12,10 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { Download, Users, CreditCard, Calendar, Building2, GraduationCap, BookOpen, TrendingUp, FileText, FilterX, Search } from "lucide-react";
+import { Download, Users, CreditCard, Calendar, Building2, GraduationCap, BookOpen, TrendingUp, FileText, FilterX, Search, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
+import JSZip from "jszip";
 import {
   ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, BRANCH_IDS,
   CONFERENCE_FEE_TYPE_LABEL, CONFERENCE_FEE_TYPE,
@@ -45,6 +46,40 @@ function saveExportBlobs(blobs: Blob[], baseName: string) {
     blobs.forEach((blob, i) => saveAs(blob, `${baseName}_part${i + 1}.zip`));
     toast.info(`数据量较大，已自动拆分为 ${blobs.length} 个 ZIP 包（每包 ≤1GB）`);
   }
+}
+
+async function downloadAbstractsZip(
+  abstracts: { name: string; abstractFileName?: string; abstractFileUrl?: string }[],
+  conferenceName: string,
+) {
+  const zip = new JSZip();
+  let count = 0;
+  for (const a of abstracts) {
+    if (!a.abstractFileUrl) continue;
+    const fileName = a.abstractFileName || `${a.name}_摘要.docx`;
+    if (a.abstractFileUrl.startsWith("data:")) {
+      const base64 = a.abstractFileUrl.split(",")[1];
+      if (base64) {
+        zip.file(fileName, base64, { base64: true });
+        count++;
+      }
+    } else {
+      try {
+        const res = await fetch(a.abstractFileUrl);
+        zip.file(fileName, await res.blob());
+        count++;
+      } catch {
+        // skip unreachable URLs in prototype
+      }
+    }
+  }
+  if (count === 0) {
+    toast.error("没有可打包的摘要文件");
+    return;
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  saveAs(blob, `${conferenceName.replace(/[\\/:*?"<>|]/g, "_")}_摘要汇总.zip`);
+  toast.success(`已打包 ${count} 份摘要`);
 }
 
 // ============================================================================
@@ -115,6 +150,67 @@ function FeeBreakdownTable({ breakdown }: { breakdown: FeeBreakdown }) {
         </TableRow>
       </TableBody>
     </Table>
+  );
+}
+
+export function SocietyFeeMatrixTable({ breakdowns }: { breakdowns: Record<string, FeeBreakdown> }) {
+  const feeCols = [
+    { key: "studentMember" as const, type: CONFERENCE_FEE_TYPE.STUDENT_MEMBER },
+    { key: "nonStudentMember" as const, type: CONFERENCE_FEE_TYPE.NON_STUDENT_MEMBER },
+    { key: "studentNonMember" as const, type: CONFERENCE_FEE_TYPE.STUDENT_NON_MEMBER },
+    { key: "nonStudentNonMember" as const, type: CONFERENCE_FEE_TYPE.NON_STUDENT_NON_MEMBER },
+  ];
+
+  const rows = Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => {
+    const bd = breakdowns[id] || {
+      studentMember: { count: 0, amount: 0 },
+      nonStudentMember: { count: 0, amount: 0 },
+      studentNonMember: { count: 0, amount: 0 },
+      nonStudentNonMember: { count: 0, amount: 0 },
+    };
+    const rowTotal = feeCols.reduce((sum, { key }) => sum + bd[key].amount, 0);
+    return { id, name, bd, rowTotal };
+  });
+
+  const hasData = rows.some(r => r.rowTotal > 0);
+
+  if (!hasData) {
+    return <div className="flex items-center justify-center h-32 text-muted-foreground">暂无实收会议费数据</div>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="min-w-[140px]">学会/分会</TableHead>
+            {feeCols.map(({ type }) => (
+              <TableHead key={type} className="text-right min-w-[100px] whitespace-nowrap">
+                {CONFERENCE_FEE_TYPE_LABEL[type]}
+              </TableHead>
+            ))}
+            <TableHead className="text-right min-w-[80px]">小计</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(({ id, name, bd, rowTotal }) => (
+            <TableRow key={id}>
+              <TableCell className="font-medium text-sm">{name}</TableCell>
+              {feeCols.map(({ key, type }) => (
+                <TableCell key={type} className="text-right text-xs whitespace-nowrap">
+                  {bd[key].count > 0 ? (
+                    <span>{bd[key].count} 笔 / ¥{bd[key].amount.toLocaleString()}</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+              ))}
+              <TableCell className="text-right font-semibold text-sm">¥{rowTotal.toLocaleString()}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -269,6 +365,17 @@ function GlobalStatistics({ stats }: { stats: GlobalStats }) {
           />
         </div>
       </div>
+
+      {/* Section 3b: 12×4 fee matrix */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">各学会四类会议费统计矩阵（12×4）</CardTitle>
+          <CardDescription>实收确认参会：笔数 / 金额（按学会 × 四类人群）</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SocietyFeeMatrixTable breakdowns={stats.perSocietyFeeBreakdown} />
+        </CardContent>
+      </Card>
 
       {/* Section 4: Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -942,6 +1049,15 @@ function ConferenceStatistics() {
                     {abstracts.length} 份摘要文件
                   </CardDescription>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => downloadAbstractsZip(abstracts, stats.confName)}
+                >
+                  <Archive className="h-3 w-3 mr-1" />
+                  打包下载全部摘要
+                </Button>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -1046,6 +1162,10 @@ function ConferenceStatistics() {
                     <span className="text-muted-foreground">{ACCOMMODATION_TYPE_LABEL.female_double}</span>
                     <span className="text-lg font-semibold">{stats.accommodation.femaleDouble || 0}</span>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">{ACCOMMODATION_TYPE_LABEL.self_arranged}</span>
+                    <span className="text-lg font-semibold">{stats.accommodation.selfArranged || 0}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1096,12 +1216,29 @@ function ConferenceStatistics() {
 // ============================================================================
 
 function BranchAdminStatisticsView() {
-  const { adminBranchId, getSocietyStats, getAllConferences } = useAdmin();
+  const { adminBranchId, getSocietyStats, getAllConferences, generateExportZip } = useAdmin();
   const [level, setLevel] = useState<"society" | "conference">("society");
+  const [isExporting, setIsExporting] = useState(false);
   const branchId = adminBranchId || "";
   const stats = getSocietyStats(branchId);
   const allConfs = getAllConferences();
   const branchConfs = useMemo(() => allConfs.filter(c => c.branchId === branchId), [allConfs, branchId]);
+
+  const handleExport = async () => {
+    if (!branchId) return;
+    setIsExporting(true);
+    try {
+      const blobs = await generateExportZip({ scope: "branch", scopeId: branchId });
+      const societyName = ALL_SOCIETY_UNITS[branchId] || branchId;
+      const fileName = `export_branch_${societyName.slice(0, 20)}_${new Date().toISOString().split("T")[0]}`;
+      saveExportBlobs(blobs, fileName);
+      toast.success("导出成功");
+    } catch (e) {
+      toast.error("导出失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (!adminBranchId) {
     return (
@@ -1122,9 +1259,15 @@ function BranchAdminStatisticsView() {
         </TabsList>
 
         <TabsContent value="society" className="mt-4 space-y-6">
-      <div>
-        <h2 className="text-lg font-bold text-strata-blue-deep">{ALL_SOCIETY_UNITS[branchId] || branchId} - 数据统计</h2>
-        <p className="text-sm text-muted-foreground">分会累计统计与会议概览（基于实收确认参会记录）</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-strata-blue-deep">{ALL_SOCIETY_UNITS[branchId] || branchId} - 数据统计</h2>
+          <p className="text-sm text-muted-foreground">分会累计统计与会议概览（基于实收确认参会记录）</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
+          <Download className="h-4 w-4 mr-2" />
+          {isExporting ? "导出中…" : "导出凭证/发票"}
+        </Button>
       </div>
 
       {/* Summary cards */}

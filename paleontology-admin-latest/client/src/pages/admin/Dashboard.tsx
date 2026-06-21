@@ -1,4 +1,5 @@
 import { useAdmin, type ReviewItem, type DashboardStats } from "@/contexts/AdminContext";
+import { SocietyFeeMatrixTable } from "@/pages/admin/Statistics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -120,6 +121,22 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
         <StatCard title="非会员" value={stats.nonMemberCount} icon={Users} delay={0.1} />
         <StatCard title="会员" value={stats.memberCount} icon={LayoutDashboard} delay={0.15} />
         <StatCard title="活跃会员" value={stats.activeMembers} icon={LayoutDashboard} delay={0.2} />
+      </div>
+
+      {/* Row 1b: Fee totals */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatCard
+          title="会员费累计总额"
+          value={`¥${globalStats.totalMembershipFee.toLocaleString()}`}
+          icon={CreditCard}
+          delay={0.22}
+        />
+        <StatCard
+          title="会议费累计总额"
+          value={`¥${globalStats.totalConferenceFee.toLocaleString()}`}
+          icon={TrendingUp}
+          delay={0.24}
+        />
       </div>
 
       {/* Row 2: 4-class population cards */}
@@ -323,6 +340,23 @@ function SuperAdminView({ stats }: { stats: DashboardStats }) {
           </Card>
         </motion.div>
       </div>
+
+      {/* Row 4b: 12×4 society fee matrix */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.58, duration: 0.4 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">各学会四类会议费统计矩阵（12×4）</CardTitle>
+            <CardDescription>实收确认参会：笔数 / 金额</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SocietyFeeMatrixTable breakdowns={globalStats.perSocietyFeeBreakdown} />
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Row 5: Payment trend + Recent reviews */}
       <div className="grid gap-6 lg:grid-cols-2">

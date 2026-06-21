@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { CONFERENCE_FEE_TYPE_LABEL, CONFERENCE_BRANCH_MAP, ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID } from "@shared/constants";
+import { pickAndReadFile, type UploadedFile } from "../lib/fileUpload";
 
 // 分会 ID → 名称映射（与 Services.tsx 保持一致）
 const BRANCH_MAP: Record<string, string> = {
@@ -59,8 +60,7 @@ export default function PersonalCenter() {
   // Phase 6: 退会申请流程
   const [showWithdrawal, setShowWithdrawal] = useState(false);
   const [wdFlowStep, setWdFlowStep] = useState(0); // 0=not started, 1=download, 2=upload, 3=submitted
-  const [wdAppFile, setWdAppFile] = useState<string | null>(null);
-  const [wdAppFileName, setWdAppFileName] = useState("");
+  const [wdAppFile, setWdAppFile] = useState<UploadedFile | null>(null);
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || "",
@@ -579,31 +579,31 @@ export default function PersonalCenter() {
                         <p className="text-blue-700">请上传填写完整的退会申请书（.doc/.docx/.pdf）。</p>
                       </div>
                       <div onClick={() => {
-                        const mockName = `退会申请书_${currentUser?.name || "Member"}_2026.pdf`;
-                        setWdAppFile("withdrawal_form_mock_url");
-                        setWdAppFileName(mockName);
-                        toast.success("退会申请书上传成功！");
+                        pickAndReadFile(".doc,.docx,.pdf", 10, (file) => {
+                          setWdAppFile(file);
+                          toast.success("退会申请书上传成功！");
+                        });
                       }} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${wdAppFile ? "border-green-500 bg-green-50/20" : "border-slate-300 hover:bg-slate-50 hover:border-orange-400"}`}>
                         {wdAppFile ? (
                           <div>
                             <span className="material-symbols-outlined text-4xl text-green-600 mb-2">check_circle</span>
-                            <p className="text-xs font-bold text-green-700">已上传：{wdAppFileName}</p>
+                            <p className="text-xs font-bold text-green-700">已上传：{wdAppFile.name}</p>
                             <p className="text-[10px] text-slate-400 mt-1">点击可重新上传</p>
                           </div>
                         ) : (
                           <div>
                             <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
-                            <p className="text-xs font-bold text-[#002B49]">点击模拟上传退会申请书</p>
+                            <p className="text-xs font-bold text-[#002B49]">点击上传退会申请书</p>
                             <p className="text-[10px] text-slate-400 mt-1">支持 .doc / .docx / .pdf 格式</p>
                           </div>
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => { setWdFlowStep(1); setWdAppFile(null); setWdAppFileName(""); }} className="flex-1 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs py-2">上一步</button>
+                        <button onClick={() => { setWdFlowStep(1); setWdAppFile(null); }} className="flex-1 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs py-2">上一步</button>
                         <button
                           onClick={() => {
                             if (!wdAppFile) { toast.error("请先上传退会申请书"); return; }
-                            submitWithdrawalApplication(wdAppFile, wdAppFileName);
+                            submitWithdrawalApplication(wdAppFile.dataUrl, wdAppFile.name);
                             setWdFlowStep(3);
                           }}
                           disabled={!wdAppFile}
@@ -620,7 +620,7 @@ export default function PersonalCenter() {
                       <p className="font-bold mb-1">⏳ 退会申请已提交</p>
                       <p className="text-yellow-700">您的退会申请书已提交，管理员审核通过后会员资格将即时终止。</p>
                       <button
-                        onClick={() => { cancelWithdrawalApplication(); setShowWithdrawal(false); setWdFlowStep(0); setWdAppFile(null); setWdAppFileName(""); }}
+                        onClick={() => { cancelWithdrawalApplication(); setShowWithdrawal(false); setWdFlowStep(0); setWdAppFile(null); }}
                         className="w-full border border-green-600 text-green-600 hover:bg-green-50 rounded-lg font-bold text-xs py-2"
                       >
                         撤销退会申请

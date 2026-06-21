@@ -1,6 +1,13 @@
 import { useState } from "react";
 import PartyLayout from "../components/PartyLayout";
 import { Link } from "wouter";
+import {
+  TOTAL_SOCIETY_ID,
+  TOTAL_SOCIETY_INTRO,
+  TOTAL_SOCIETY_TAGS,
+  TOTAL_SOCIETY_MEETINGS,
+  ALL_SOCIETY_UNITS,
+} from "@shared/constants";
 
 // 11 专业分会数据
 const branchesData = [
@@ -127,6 +134,14 @@ const branchesData = [
   },
 ];
 
+/** 页面卡片 ID → 学术会议/绑定使用的 canonical 分会 ID */
+const BRANCH_SERVICES_ID_MAP: Record<string, string> = {
+  gwjz: "gwjzdwxfh",
+  kpgz: "kpgzwyh",
+  hszl: "hszlzwyh",
+  wtx: "wtxfh",
+};
+
 export default function Branches() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
@@ -195,51 +210,42 @@ export default function Branches() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Phase 2: 总学会卡片 — 金色边框置顶 */}
-                <div className="bg-white border-2 border-[#D9C5A0] rounded-xl p-6 shadow-md relative overflow-hidden sm:col-span-2 lg:col-span-3">
+                {/* 总学会卡片 — 金色边框置顶，点击进入总学会会议模块 */}
+                <div
+                  onClick={() => setSelectedBranch(TOTAL_SOCIETY_ID)}
+                  className="bg-white border-2 border-[#D9C5A0] rounded-xl p-6 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden sm:col-span-2 lg:col-span-3"
+                >
                   {/* Golden accent bar */}
                   <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#D9C5A0] via-[#c8a96e] to-[#D9C5A0]" />
                   <div className="absolute top-0 right-0 w-32 h-32 bg-[#D9C5A0] opacity-5 rounded-full translate-x-8 -translate-y-8" />
                   <div className="flex flex-col md:flex-row items-start gap-6 relative z-10">
-                    {/* Badge */}
                     <div className="flex-shrink-0 w-16 h-16 rounded-xl bg-gradient-to-br from-[#D9C5A0] to-[#c8a96e] flex items-center justify-center shadow-md">
                       <span className="material-symbols-outlined text-[32px] text-white">account_balance</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h3 className="font-bold text-[#002B49] text-lg" style={{ fontFamily: "Georgia, serif" }}>中国古生物学会（总学会）</h3>
-                        <span className="text-[10px] font-bold bg-[#D9C5A0]/20 text-[#715a3e] px-2.5 py-0.5 rounded-full">上级单位</span>
+                        <h3 className="font-bold text-[#002B49] text-lg group-hover:text-[#715a3e] transition-colors" style={{ fontFamily: "Georgia, serif" }}>
+                          {ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}
+                        </h3>
+                        <span className="text-[10px] font-bold bg-[#D9C5A0]/20 text-[#715a3e] px-2.5 py-0.5 rounded-full">总学会</span>
                       </div>
-                      <p className="text-sm text-slate-600 leading-relaxed mb-4 max-w-3xl">
-                        中国古生物学会是由全国古生物科技工作者自愿组成的学术性、非营利性社会团体，是中国科学技术协会的组成部分。学会成立于1979年，致力于推动古生物学领域的学术交流、科学普及与学科发展，组织全国性及国际性学术会议，促进古生物学科研成果的传播与应用。
+                      <p className="text-sm text-slate-600 leading-relaxed mb-4 max-w-3xl line-clamp-2">
+                        {TOTAL_SOCIETY_INTRO}
                       </p>
                       <div className="flex flex-wrap gap-1.5 mb-4">
-                        {["学术交流", "科学普及", "学科发展", "国际会议", "人才培养"].map(tag => (
+                        {TOTAL_SOCIETY_TAGS.map((tag) => (
                           <span key={tag} className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#D9C5A0]/10 text-[#715a3e] border border-[#D9C5A0]/30">{tag}</span>
                         ))}
                       </div>
                       <div className="flex items-center justify-between flex-wrap gap-4">
                         <div className="flex items-center gap-4 text-[11px] text-slate-500">
-                          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">event</span>成立于 1979 年</span>
-                          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">location_on</span>江苏 · 南京</span>
+                          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">event</span>已发布 {TOTAL_SOCIETY_MEETINGS.length} 场活动</span>
                           <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px] text-[#715a3e]">group</span>11 个下属分会</span>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <a
-                            href="http://www.chinapsc.cn/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs font-bold text-[#715a3e] hover:text-[#002B49] transition-colors border border-[#D9C5A0] px-3 py-1.5 rounded-lg hover:bg-[#D9C5A0]/10"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">open_in_new</span>访问总学会官网
-                          </a>
-                          <Link
-                            href="/services?tab=conference&branch=zgswxh"
-                            className="flex items-center gap-1 text-xs font-bold text-white bg-[#002B49] hover:bg-[#001f35] transition-colors px-3 py-1.5 rounded-lg"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">event</span>查看总学会会议
-                          </Link>
-                        </div>
+                        <span className="flex items-center text-xs font-bold gap-1 text-[#715a3e] group-hover:text-[#002B49] transition-colors">
+                          查看详情
+                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -315,6 +321,116 @@ export default function Branches() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : selectedBranch === TOTAL_SOCIETY_ID ? (
+            /* 总学会详情 — 仅展示总学会发布的会议/活动 */
+            <div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 mb-8">
+                <button
+                  onClick={() => setSelectedBranch(null)}
+                  className="hover:text-[#002B49] transition-colors flex items-center gap-1 font-bold"
+                >
+                  <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                  专业分会列表
+                </button>
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                <span className="text-[#002B49] font-bold">{ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}</span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="bg-white border-2 border-[#D9C5A0] rounded-xl overflow-hidden shadow-sm">
+                    <div className="h-2 bg-gradient-to-r from-[#D9C5A0] via-[#c8a96e] to-[#D9C5A0]" />
+                    <div className="p-6">
+                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#D9C5A0] to-[#c8a96e] flex items-center justify-center mb-4 shadow-md">
+                        <span className="material-symbols-outlined text-[32px] text-white">account_balance</span>
+                      </div>
+                      <h2 className="text-xl font-bold text-[#002B49] mb-1" style={{ fontFamily: "Georgia, serif" }}>
+                        {ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}
+                      </h2>
+                      <p className="text-xs text-slate-400 mb-6">总学会 · 学术年会与重要论坛发布</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TOTAL_SOCIETY_TAGS.map((tag) => (
+                          <span key={tag} className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#D9C5A0]/10 text-[#715a3e] border border-[#D9C5A0]/30">{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-[#E5E1DA] rounded-xl p-4 shadow-sm">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">学会组织</p>
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setSelectedBranch(TOTAL_SOCIETY_ID)}
+                        className="w-full text-left px-3 py-2 text-xs font-bold text-[#715a3e] bg-[#D9C5A0]/10 rounded-lg transition-all flex items-center gap-2 border border-[#D9C5A0]/50"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-[#715a3e]">account_balance</span>
+                        {ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}
+                      </button>
+                      {branchesData.slice(0, 6).map((b) => (
+                        <button
+                          key={b.id}
+                          onClick={() => setSelectedBranch(b.id)}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-slate-600 hover:text-[#002B49] hover:bg-slate-50 rounded-lg transition-all flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[14px]" style={{ color: b.color }}>{b.icon}</span>
+                          {b.name}
+                        </button>
+                      ))}
+                      {branchesData.length > 6 && (
+                        <button
+                          onClick={() => setSelectedBranch(null)}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-[#715a3e] hover:underline flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">expand_more</span>
+                          查看全部分会
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-white border border-[#E5E1DA] rounded-xl p-8 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                      <span className="material-symbols-outlined text-[#715a3e]">info</span>
+                      <h3 className="text-lg font-bold text-[#002B49]" style={{ fontFamily: "Georgia, serif" }}>模块说明</h3>
+                    </div>
+                    <p className="text-sm text-slate-700 leading-8 tracking-wide">{TOTAL_SOCIETY_INTRO}</p>
+                  </div>
+
+                  <div className="bg-white border border-[#E5E1DA] rounded-xl p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-[#002B49] text-sm flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px]">event</span>
+                        已发布的会议与活动
+                      </h4>
+                      <Link
+                        href="/services?tab=conference&branch=zgswxh"
+                        className="text-xs font-bold text-[#002B49] hover:text-[#715a3e] transition-colors flex items-center gap-1"
+                      >
+                        查看全部会议
+                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </Link>
+                    </div>
+                    <div className="space-y-3">
+                      {TOTAL_SOCIETY_MEETINGS.map((meeting) => (
+                        <Link
+                          key={meeting.id}
+                          href="/services?tab=conference&branch=zgswxh"
+                          className="block border border-[#E5E1DA] rounded-lg p-4 hover:border-[#D9C5A0] hover:bg-[#D9C5A0]/5 transition-all"
+                        >
+                          <p className="font-bold text-[#002B49] text-sm mb-1">{meeting.title}</p>
+                          <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+                            <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">schedule</span>{meeting.time}</span>
+                            <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">location_on</span>{meeting.location}</span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
@@ -412,7 +528,7 @@ export default function Branches() {
                       <div className="space-y-1">
                         {/* Phase 2: 总学会入口 */}
                         <button
-                          onClick={() => setSelectedBranch(null)}
+                          onClick={() => setSelectedBranch(TOTAL_SOCIETY_ID)}
                           className="w-full text-left px-3 py-2 text-xs font-bold text-[#715a3e] hover:bg-[#D9C5A0]/10 rounded-lg transition-all flex items-center gap-2 border border-[#D9C5A0]/50 bg-[#D9C5A0]/5"
                         >
                           <span className="material-symbols-outlined text-[14px] text-[#715a3e]">account_balance</span>
@@ -472,17 +588,15 @@ export default function Branches() {
                         <div>
                           <h4 className="font-bold text-[#002B49] text-sm mb-1">了解更多</h4>
                           <p className="text-xs text-slate-500 leading-relaxed mb-3">
-                            如需了解该分会的最新动态、会议通知及学术资源，请访问中国古生物学会官方网站或联系学会秘书处。
+                            如需了解该分会的最新动态、会议通知及学术资源，请在本站查看该分会发布的学术会议。
                           </p>
-                          <a
-                            href="http://www.chinapsc.cn/zyfh/"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <Link
+                            href={`/services?tab=conference&branch=${BRANCH_SERVICES_ID_MAP[selected.id] || selected.id}`}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#002B49] hover:text-[#715a3e] transition-colors"
                           >
-                            <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                            访问中国古生物学会官网专业分会页面
-                          </a>
+                            <span className="material-symbols-outlined text-[14px]">event</span>
+                            查看该分会会议
+                          </Link>
                         </div>
                       </div>
                     </div>
@@ -496,7 +610,7 @@ export default function Branches() {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {/* Phase 2: 总学会快捷入口 */}
                         <button
-                          onClick={() => setSelectedBranch(null)}
+                          onClick={() => setSelectedBranch(TOTAL_SOCIETY_ID)}
                           className="text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all border border-[#D9C5A0] bg-[#D9C5A0]/10 text-[#715a3e] hover:bg-[#D9C5A0]/20"
                         >
                           总学会

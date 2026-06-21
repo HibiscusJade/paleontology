@@ -147,6 +147,28 @@ export const MEMBERSHIP_STATUS_LABEL: Record<string, string> = {
 /** 总学会 ID 常量 */
 export const TOTAL_SOCIETY_ID = "zgswxh";
 
+/** 总学会专业分会页顶置模块文案 */
+export const TOTAL_SOCIETY_INTRO =
+  "中国古生物学会（总学会）负责发布学会层级的学术活动，包括中国古生物学术年会、重要论坛及综合学术活动。总学会不发布各专业分会的会议信息；各分会学术年会请查看下方对应分会栏目。";
+
+export const TOTAL_SOCIETY_TAGS = ["学术年会", "重要论坛", "学术活动"] as const;
+
+/** 总学会已发布会议（展示用，与学术会议服务数据对应） */
+export const TOTAL_SOCIETY_MEETINGS = [
+  {
+    id: "conf-zgswxh-1",
+    title: "中国古生物学会第32届学术年会",
+    time: "2026年10月15日 - 10月19日",
+    location: "江苏 · 南京",
+  },
+  {
+    id: "conf-zgswxh-2",
+    title: "中国古生物学会国际古生物学前沿论坛",
+    time: "2027年04月10日 - 04月13日",
+    location: "北京 · 中国科学院",
+  },
+] as const;
+
 /** 所有学会单元（总学会 + 11 个分会），总学会置顶 */
 export const ALL_SOCIETY_UNITS: Record<string, string> = {
   [TOTAL_SOCIETY_ID]: "中国古生物学会（总学会）",
@@ -266,18 +288,22 @@ export function getConferenceFeeByType(confId: string, feeType: ConferenceFeeTyp
 
 /** 获取会议的四类费用配置
  *  优先从 localStorage 读取，fallback 到旧 CONFERENCE_FEE_MEMBER 兼容计算 */
-export function getConferenceFeeConfig(confId: string): ConferenceFeeConfig {
-  const stored = localStorage.getItem("paleo_conference_fee_configs");
-  if (stored) {
-    try {
-      const configs = JSON.parse(stored);
-      if (configs[confId]) {
-        return configs[confId];
-      }
-    } catch {
-      // fallback
-    }
+function readFeeConfigStore(key: string, confId: string): ConferenceFeeConfig | null {
+  const stored = localStorage.getItem(key);
+  if (!stored) return null;
+  try {
+    const configs = JSON.parse(stored);
+    return configs[confId] ?? null;
+  } catch {
+    return null;
   }
+}
+
+export function getConferenceFeeConfig(confId: string): ConferenceFeeConfig {
+  const fromAdmin = readFeeConfigStore("paleo_admin_conference_fee_configs", confId);
+  if (fromAdmin) return fromAdmin;
+  const fromUser = readFeeConfigStore("paleo_conference_fee_configs", confId);
+  if (fromUser) return fromUser;
   // fallback：从旧 CONFERENCE_FEE_MEMBER 计算四类价格（向后兼容）
   const memberFee = CONFERENCE_FEE_MEMBER[confId] ?? 1000;
   const nonMemberFee = Math.round(memberFee * 1.1);

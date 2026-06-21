@@ -59,6 +59,9 @@ function ConferenceForm({
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   // Phase 2: File upload state
+  const [publicNoticeFile, setPublicNoticeFile] = useState<{ name: string; dataUrl: string } | null>(
+    initialData?.publicNoticeUrl ? { name: initialData.publicNoticeName || "public_notice.pdf", dataUrl: initialData.publicNoticeUrl } : null
+  );
   const [stampedNoticeFile, setStampedNoticeFile] = useState<{ name: string; dataUrl: string } | null>(
     initialData?.stampedNoticeUrl ? { name: initialData.stampedNoticeName || "notice.pdf", dataUrl: initialData.stampedNoticeUrl } : null
   );
@@ -83,11 +86,13 @@ function ConferenceForm({
     return null;
   });
 
-  const handleFileUpload = (fileType: "stampedNotice" | "abstractTemplate", file: File) => {
+  const handleFileUpload = (fileType: "publicNotice" | "stampedNotice" | "abstractTemplate", file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
-      if (fileType === "stampedNotice") {
+      if (fileType === "publicNotice") {
+        setPublicNoticeFile({ name: file.name, dataUrl });
+      } else if (fileType === "stampedNotice") {
         setStampedNoticeFile({ name: file.name, dataUrl });
       } else {
         setAbstractTemplateFile({ name: file.name, dataUrl });
@@ -179,6 +184,8 @@ function ConferenceForm({
       sessions: sessions.filter((s) => s.name.trim()),
       status,
       // Phase 2: Include file data
+      publicNoticeUrl: publicNoticeFile?.dataUrl,
+      publicNoticeName: publicNoticeFile?.name,
       stampedNoticeUrl: stampedNoticeFile?.dataUrl,
       stampedNoticeName: stampedNoticeFile?.name,
       abstractTemplateUrl: abstractTemplateFile?.dataUrl,
@@ -376,7 +383,40 @@ function ConferenceForm({
       {/* Phase 2: 会议资料上传 */}
       <div className="space-y-3 border-t border-slate-100 pt-4">
         <Label className="text-sm font-bold text-strata-blue-deep block">会议资料上传</Label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Public Notice PDF (unstamped) */}
+          <div className="space-y-2">
+            <Label htmlFor="file-public-notice" className="text-xs">公开会议通知 PDF（不盖章）</Label>
+            <div className="flex items-center gap-2">
+              <label className="flex-1 cursor-pointer">
+                <input
+                  id="file-public-notice"
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload("publicNotice", file);
+                  }}
+                />
+                <div className="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center hover:border-strata-blue-deep transition-colors">
+                  {publicNoticeFile ? (
+                    <span className="text-green-600 font-bold text-xs flex items-center justify-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                      {publicNoticeFile.name}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 text-xs">点击上传 PDF</span>
+                  )}
+                </div>
+              </label>
+              {publicNoticeFile && (
+                <button type="button" className="text-party-red hover:text-party-red-dark text-xs font-bold" onClick={() => setPublicNoticeFile(null)}>
+                  移除
+                </button>
+              )}
+            </div>
+          </div>
           {/* Stamped Notice PDF */}
           <div className="space-y-2">
             <Label htmlFor="file-stamped-notice" className="text-xs">盖章会议通知 PDF</Label>

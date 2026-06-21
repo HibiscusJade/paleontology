@@ -22,6 +22,18 @@ import {
   isDeadlinePassed,
 } from "@shared/constants";
 
+/** 智能审核：工作日加算（与管理端一致） */
+function addWorkdays(dateStr: string, workdays: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  let added = 0;
+  while (added < workdays) {
+    d.setDate(d.getDate() + 1);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) added++;
+  }
+  return d.toISOString().split("T")[0];
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -67,6 +79,9 @@ export interface SocietyMembership {
   applicationRejectReason?: string;
   invoiceDeadline?: string;
   invoiceExtendedDeadline?: string;
+  voucherAuditTime?: string;
+  invoiceAuditTime?: string;
+  smartReviewNote?: string;
   frozenDueToExpiry?: boolean;
   /** @deprecated 从 PaymentRecord 中读取金额，Phase 2 移除 */
   amount?: number;
@@ -115,6 +130,48 @@ export interface ConferenceReg {
   conferenceForm?: any;
   /** @deprecated 旧字段兼容，Phase 2 移除 */
   reportType?: string;
+  smartReviewNote?: string;
+}
+
+/** 智能审核 mock：凭证/发票自动通过（原型演示，减少人工审核队列） */
+function smartApproveVoucherMembership(membership: SocietyMembership): SocietyMembership {
+  return {
+    ...membership,
+    status: "invoice_pending",
+    invoiceDeadline: addWorkdays(new Date().toISOString().split("T")[0], 7),
+    voucherAuditTime: new Date().toISOString(),
+    smartReviewNote: "智能审核：凭证金额与用户信息匹配，已自动通过初审",
+  };
+}
+
+function smartApproveInvoiceMembership(membership: SocietyMembership): SocietyMembership {
+  const expiryDate = new Date(new Date().getFullYear(), 11, 31).toISOString().split("T")[0];
+  return {
+    ...membership,
+    status: "active",
+    expiryDate,
+    invoiceAuditTime: new Date().toISOString(),
+    smartReviewNote: "智能审核：发票信息与凭证一致，已自动通过终审",
+  };
+}
+
+function smartApproveVoucherConference(reg: ConferenceReg): ConferenceReg {
+  return {
+    ...reg,
+    status: "invoice_pending",
+    invoiceDeadline: addWorkdays(new Date().toISOString().split("T")[0], 7),
+    voucherAuditTime: new Date().toISOString(),
+    smartReviewNote: "智能审核：凭证金额与锁定费用一致，已自动通过初审",
+  };
+}
+
+function smartApproveInvoiceConference(reg: ConferenceReg): ConferenceReg {
+  return {
+    ...reg,
+    status: "confirmed",
+    invoiceAuditTime: new Date().toISOString(),
+    smartReviewNote: "智能审核：发票信息与凭证一致，已自动通过终审",
+  };
 }
 
 export interface SystemNotification {
@@ -397,6 +454,18 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener("storage", onStorage);
     };
   }, [currentUser?.email]);
+
+  // 会员到期自动退会：超期未续费 → expired + 非会员身份
+  useEffect(() => {
+    if (!currentUser || userType !== "member") return;
+    if (societyMembership.status !== "active" || !societyMembership.expiryDate) return;
+    const expiryEnd = new Date(societyMembership.expiryDate);
+    expiryEnd.setHours(23, 59, 59, 999);
+    if (new Date() > expiryEnd) {
+      handleMembershipExpiry();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleMembershipExpiry reads latest state when invoked
+  }, [currentUser?.email, userType, societyMembership.status, societyMembership.expiryDate]);
 
   const loadUserState = (email: string) => {
     const membershipKey = `paleo_society_membership_${email}`;
@@ -687,22 +756,22 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       status: "voucher_submitted"
     };
 
-    const updatedMembership: SocietyMembership = {
+    const updatedMembership: SocietyMembership = smartApproveVoucherMembership({
       ...societyMembership,
       status: "voucher_submitted",
       history: [newRecord, ...societyMembership.history]
-    };
+    });
 
     setSocietyMembership(updatedMembership);
     saveState(`paleo_society_membership_${currentUser.email}`, updatedMembership);
 
     addNotification({
-      title: "学会会员费凭证已提交",
-      content: `您已成功提交中国古生物学会会员费缴纳凭证（金额：¥${amount}）。财务人员将在 1-3 个工作日内完成凭证初审，初审通过后需上传电子发票。`,
-      type: "info"
+      title: "学会会员费凭证已通过智能初审",
+      content: `您提交的会员费凭证（¥${amount}）已通过智能审核。请在 ${updatedMembership.invoiceDeadline} 前上传电子发票。`,
+      type: "success"
     });
 
-    toast.success("会员费凭证提交成功，请等待财务初审。");
+    toast.success("会员费凭证已提交，智能审核已通过初审，请上传电子发票。");
   };
 
   /** 阶段二：提交电子发票 → status = invoice_submitted */
@@ -720,22 +789,23 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         : h
     );
 
-    const updatedMembership: SocietyMembership = {
+    const afterInvoiceSubmit: SocietyMembership = {
       ...societyMembership,
       status: "invoice_submitted",
       history: updatedHistory
     };
+    const updatedMembership = smartApproveInvoiceMembership(afterInvoiceSubmit);
 
     setSocietyMembership(updatedMembership);
     saveState(`paleo_society_membership_${currentUser.email}`, updatedMembership);
 
     addNotification({
-      title: "会员费电子发票已提交",
-      content: "您已成功上传电子发票，财务人员将进行终审。终审通过后会员资格正式生效。",
-      type: "info"
+      title: "会员资格已生效",
+      content: `您的会员费已通过智能终审，会员资格已生效，有效期至 ${updatedMembership.expiryDate}。`,
+      type: "success"
     });
 
-    toast.success("电子发票提交成功，请等待财务终审。");
+    toast.success("电子发票已通过智能终审，会员资格已生效。");
   };
 
   // ==========================================
@@ -813,7 +883,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    const updatedReg: ConferenceReg = {
+    const afterVoucher: ConferenceReg = {
       ...(conferenceRegs[confId] || {
         name: currentUser.name,
         gender: currentUser.gender,
@@ -830,18 +900,19 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       voucherSubmitTime: new Date().toLocaleString("zh-CN"),
       lastUpdated: new Date().toLocaleString("zh-CN")
     };
+    const updatedReg = smartApproveVoucherConference(afterVoucher);
 
     const updatedRegs = { ...conferenceRegs, [confId]: updatedReg };
     setConferenceRegs(updatedRegs);
     saveState(`paleo_confs_${currentUser.email}`, updatedRegs);
 
     addNotification({
-      title: "会议注册费凭证已提交",
-      content: `您已成功提交【${confTitle}】的会议注册费凭证（金额：¥${getConferenceFeeAction(confId)}）。凭证初审通过后，您即可填写参会信息并上传发票。`,
-      type: "info"
+      title: "会议注册费凭证已通过智能初审",
+      content: `【${confTitle}】凭证已通过智能审核（¥${lockedAmount}）。请在 ${updatedReg.invoiceDeadline} 前上传电子发票并填写参会信息。`,
+      type: "success"
     });
 
-    toast.success(`【${confTitle}】会议费凭证提交成功，请等待财务初审。`);
+    toast.success(`【${confTitle}】凭证已通过智能初审，请上传电子发票。`);
   };
 
   /** 阶段二：提交会议费发票 + OCR 模拟比对 → status = invoice_submitted */
@@ -859,21 +930,14 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    // 模拟 OCR 金额比对
-    const confFee = getConferenceFee(confId);
-    const ocrPassed = Math.random() > 0.1; // 90% 模拟通过率
-    if (!ocrPassed) {
-      toast.error("发票金额与凭证金额不一致，请检查后重新上传。");
-      return;
-    }
-
-    const updatedReg: ConferenceReg = {
+    const afterInvoice: ConferenceReg = {
       ...currentReg,
       status: "invoice_submitted",
       invoiceUrl,
       invoiceSubmitTime: new Date().toLocaleString("zh-CN"),
       lastUpdated: new Date().toLocaleString("zh-CN")
     };
+    const updatedReg = smartApproveInvoiceConference(afterInvoice);
 
     const updatedRegs = { ...conferenceRegs, [confId]: updatedReg };
     setConferenceRegs(updatedRegs);
@@ -881,12 +945,12 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const confTitle = getConferenceTitle(confId);
     addNotification({
-      title: "会议费电子发票已提交",
-      content: `您已成功上传【${confTitle}】的电子发票，财务人员将进行终审确认。`,
-      type: "info"
+      title: "会议报名已确认",
+      content: `【${confTitle}】发票已通过智能终审，报名已确认。您现在可以填写摘要、住宿和野外考察信息。`,
+      type: "success"
     });
 
-    toast.success("电子发票提交成功，请等待财务终审。");
+    toast.success("电子发票已通过智能终审，报名已确认。");
   };
 
   const submitConferenceForm = (confId: string, formData: Omit<ConferenceReg, "status" | "paymentVoucher" | "invoiceUrl">) => {
@@ -1446,11 +1510,7 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setConferenceRegs(updatedRegs);
     saveState(`paleo_confs_${currentUser.email}`, updatedRegs);
 
-    // 清空分会绑定
-    setBoundBranches([]);
-    saveState(`paleo_bound_branches_${currentUser.email}`, []);
-
-    // 更新会员状态
+    // 更新会员状态 → 超期视为自动退会，转为非会员身份（保留分会绑定，可继续以非会员参会）
     const updatedMembership: SocietyMembership = {
       ...societyMembership,
       status: "expired",
@@ -1459,13 +1519,15 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setSocietyMembership(updatedMembership);
     saveState(`paleo_society_membership_${currentUser.email}`, updatedMembership);
 
-    if (frozenCount > 0 || expiredCount > 0) {
-      addNotification({
-        title: "会员到期 — 会议资格已更新",
-        content: `您的学会会员已到期。${frozenCount > 0 ? `${frozenCount} 个待终审的会议报名已锁定，续费并完成终审后可恢复。` : ""}${expiredCount > 0 ? `${expiredCount} 个未完成报名的会议已自动取消。` : ""}`,
-        type: "warning"
-      });
-    }
+    setUserType("non_member");
+    localStorage.setItem(`paleo_user_type_${currentUser.email}`, "non_member");
+    localStorage.setItem(`paleo_admin_user_type_${currentUser.email}`, "non_member");
+
+    addNotification({
+      title: "会员资格已到期 — 已自动转为非会员",
+      content: `您的学会会员已到期，系统已自动解除会员资格，您可继续以非会员身份绑定学会并参会。${frozenCount > 0 ? `${frozenCount} 个待终审的会议报名已锁定。` : ""}${expiredCount > 0 ? `${expiredCount} 个未完成报名的会议已自动取消。` : ""}`,
+      type: "warning"
+    });
   };
 
   /** 续费后的恢复逻辑（§4.3） */

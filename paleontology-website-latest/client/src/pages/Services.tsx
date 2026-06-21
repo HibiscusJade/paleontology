@@ -4,7 +4,15 @@ import { Link, useLocation } from "wouter";
 import { useMembership } from "../contexts/MembershipContext";
 import { toast } from "sonner";
 import LoginJoinDialog from "../components/LoginJoinDialog";
-import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_STATUS, getConferenceFeeConfig as getConfiguredFeeConfig, type ConferenceFeeConfig, CONFERENCE_FEE_TYPE_LABEL, type ConferenceFeeType, ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, isSocietyAccessible, isDeadlinePassed, sortConferencesSocietyFirst, ACCOMMODATION_TYPE_LABEL, type AccommodationType, FIELD_TRIP_PHASE_LABEL, type FieldTripRoute, type FieldTripSelections, createEmptyFieldTripSelections } from "@shared/constants";
+import { pickAndReadFile, type UploadedFile } from "../lib/fileUpload";
+import { CONFERENCE_STATUS_LABEL, CONFERENCE_STATUS_COLOR, CONFERENCE_STATUS, getConferenceFeeConfig as getConfiguredFeeConfig, type ConferenceFeeConfig, CONFERENCE_FEE_TYPE_LABEL, type ConferenceFeeType, ALL_SOCIETY_UNITS, TOTAL_SOCIETY_ID, TOTAL_SOCIETY_INTRO, TOTAL_SOCIETY_TAGS, TOTAL_SOCIETY_MEETINGS, isSocietyAccessible, isDeadlinePassed, sortConferencesSocietyFirst, ACCOMMODATION_TYPE_LABEL, type AccommodationType, FIELD_TRIP_PHASE_LABEL, type FieldTripRoute, type FieldTripSelections, createEmptyFieldTripSelections } from "@shared/constants";
+
+const BRANCH_SERVICES_ID_MAP: Record<string, string> = {
+  gwjz: "gwjzdwxfh",
+  kpgz: "kpgzwyh",
+  hszl: "hszlzwyh",
+  wtx: "wtxfh",
+};
 
 export default function Services() {
   const [location, setLocation] = useLocation();
@@ -91,8 +99,8 @@ export default function Services() {
   const [selectedConference, setSelectedConference] = useState<string | null>(null);
   const [confPaymentTarget, setConfPaymentTarget] = useState<string | null>(null);
   const [confPaymentStep, setConfPaymentStep] = useState<number>(1);
-  const [confVoucher, setConfVoucher] = useState<string | null>(null);
-  const [confInvoice, setConfInvoice] = useState<string | null>(null);
+  const [confVoucher, setConfVoucher] = useState<UploadedFile | null>(null);
+  const [confInvoice, setConfInvoice] = useState<UploadedFile | null>(null);
   const [editingReg, setEditingReg] = useState<string | null>(null);
 
   // Form state for conference registration
@@ -117,12 +125,11 @@ export default function Services() {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   // Member fee payment flow
   const [memberPayStep, setMemberPayStep] = useState(1);
-  const [memberVoucher, setMemberVoucher] = useState<string | null>(null);
-  const [memberInvoice, setMemberInvoice] = useState<string | null>(null);
+  const [memberVoucher, setMemberVoucher] = useState<UploadedFile | null>(null);
+  const [memberInvoice, setMemberInvoice] = useState<UploadedFile | null>(null);
   // Phase 6: 入会申请流程
   const [appFlowStep, setAppFlowStep] = useState(0); // 0=not started, 1=download template, 2=upload, 3=submitted
-  const [memberAppFile, setMemberAppFile] = useState<string | null>(null);
-  const [memberAppFileName, setMemberAppFileName] = useState<string>("");
+  const [memberAppFile, setMemberAppFile] = useState<UploadedFile | null>(null);
 
   // Sync profile data when editing conference form
   useEffect(() => {
@@ -590,28 +597,31 @@ export default function Services() {
       const SOCIETY_FEE = getMembershipFee("standard");
 
       const handleVoucherUpload = () => {
-        setMemberVoucher("bank_transfer_receipt_2026.png");
-        toast.success("缴费凭证银行回单上传成功！");
+        pickAndReadFile(".jpg,.jpeg,.png,.pdf", 5, (file) => {
+          setMemberVoucher(file);
+          toast.success("缴费凭证上传成功！");
+        });
       };
       const handleInvoiceUpload = () => {
         if (societyMembership?.status !== "invoice_pending" && societyMembership?.status !== "invoice_overdue") {
           toast.error("请先等待凭证初审通过后再上传发票。");
           return;
         }
-        setMemberInvoice("invoice_electronic_2026.pdf");
-        submitMembershipInvoice(mockVoucherUrl);
-        setMemberPayStep(1);
-        setMemberVoucher(null);
-        setMemberInvoice(null);
-        setShowFeePayment(null);
+        pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
+          setMemberInvoice(file);
+          submitMembershipInvoice(file.dataUrl);
+          setMemberPayStep(1);
+          setMemberVoucher(null);
+          setMemberInvoice(null);
+          setShowFeePayment(null);
+        });
       };
       const handlePaymentSubmit = () => {
         if (!memberVoucher) {
           toast.error("请先上传银行转账/汇款凭证截图或照片！");
           return;
         }
-        // 两阶段：先提交凭证（阶段一）
-        submitMembershipVoucher(mockVoucherUrl, SOCIETY_FEE);
+        submitMembershipVoucher(memberVoucher.dataUrl, SOCIETY_FEE);
         setMemberPayStep(1);
         setMemberVoucher(null);
         setMemberInvoice(null);
@@ -752,13 +762,13 @@ export default function Services() {
                     {memberVoucher ? (
                       <div>
                         <span className="material-symbols-outlined text-4xl text-green-600 mb-2">check_circle</span>
-                        <p className="text-xs font-bold text-green-700">已上传：{memberVoucher}</p>
+                        <p className="text-xs font-bold text-green-700">已上传：{memberVoucher.name}</p>
                         <p className="text-[10px] text-slate-400 mt-1">点击可重新上传</p>
                       </div>
                     ) : (
                       <div>
                         <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
-                        <p className="text-xs font-bold text-[#002B49]">点击模拟上传转账电子回单</p>
+                        <p className="text-xs font-bold text-[#002B49]">点击上传转账电子回单</p>
                         <p className="text-[10px] text-slate-400 mt-1">支持 JPG/PNG 格式，单张 ≤ 5MB</p>
                       </div>
                     )}
@@ -787,19 +797,21 @@ export default function Services() {
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-2">电子发票（必传）*</label>
                   <div onClick={() => {
-                    setMemberInvoice("invoice_electronic_2026.pdf");
-                    toast.success("电子发票上传成功！");
+                    pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
+                      setMemberInvoice(file);
+                      toast.success("电子发票上传成功！");
+                    });
                   }} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${memberInvoice ? "border-green-500 bg-green-50/20" : "border-slate-300 hover:bg-slate-50 hover:border-[#002B49]"}`}>
                     {memberInvoice ? (
                       <div>
                         <span className="material-symbols-outlined text-4xl text-green-600 mb-2">check_circle</span>
-                        <p className="text-xs font-bold text-green-700">已上传：{memberInvoice}</p>
+                        <p className="text-xs font-bold text-green-700">已上传：{memberInvoice.name}</p>
                         <p className="text-[10px] text-slate-400 mt-1">点击可重新上传</p>
                       </div>
                     ) : (
                       <div>
                         <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">receipt_long</span>
-                        <p className="text-xs font-bold text-[#002B49]">点击模拟上传电子发票</p>
+                        <p className="text-xs font-bold text-[#002B49]">点击上传电子发票</p>
                         <p className="text-[10px] text-slate-400 mt-1">支持 JPG/PNG/PDF 格式，单张 ≤ 10MB</p>
                       </div>
                     )}
@@ -968,32 +980,32 @@ export default function Services() {
                         <p className="text-blue-700">请上传填写完整的入会申请书（.doc/.docx/.pdf）。</p>
                       </div>
                       <div onClick={() => {
-                        const mockName = `入会申请书_${currentUser?.name || "Member"}_2026.pdf`;
-                        setMemberAppFile("application_form_mock_url");
-                        setMemberAppFileName(mockName);
-                        toast.success("入会申请书上传成功！");
+                        pickAndReadFile(".doc,.docx,.pdf", 10, (file) => {
+                          setMemberAppFile(file);
+                          toast.success("入会申请书上传成功！");
+                        });
                       }} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${memberAppFile ? "border-green-500 bg-green-50/20" : "border-slate-300 hover:bg-slate-50 hover:border-[#002B49]"}`}>
                         {memberAppFile ? (
                           <div>
                             <span className="material-symbols-outlined text-4xl text-green-600 mb-2">check_circle</span>
-                            <p className="text-xs font-bold text-green-700">已上传：{memberAppFileName}</p>
+                            <p className="text-xs font-bold text-green-700">已上传：{memberAppFile.name}</p>
                             <p className="text-[10px] text-slate-400 mt-1">点击可重新上传</p>
                           </div>
                         ) : (
                           <div>
                             <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
-                            <p className="text-xs font-bold text-[#002B49]">点击模拟上传入会申请书</p>
+                            <p className="text-xs font-bold text-[#002B49]">点击上传入会申请书</p>
                             <p className="text-[10px] text-slate-400 mt-1">支持 .doc / .docx / .pdf 格式</p>
                           </div>
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => { setAppFlowStep(1); setMemberAppFile(null); setMemberAppFileName(""); }} className="flex-1 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs py-2">上一步</button>
+                        <button onClick={() => { setAppFlowStep(1); setMemberAppFile(null); }} className="flex-1 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs py-2">上一步</button>
                         <button
                           onClick={() => {
                             if (!memberAppFile) { toast.error("请先上传入会申请书"); return; }
                             chooseMembershipPath("member");
-                            submitMembershipApplication(memberAppFile, memberAppFileName);
+                            submitMembershipApplication(memberAppFile.dataUrl, memberAppFile.name);
                             setAppFlowStep(3);
                           }}
                           disabled={!memberAppFile}
@@ -1026,7 +1038,7 @@ export default function Services() {
                         </div>
                       </div>
                       <button
-                        onClick={() => { cancelMembershipApplication(); setAppFlowStep(0); setMemberAppFile(null); setMemberAppFileName(""); }}
+                        onClick={() => { cancelMembershipApplication(); setAppFlowStep(0); setMemberAppFile(null); }}
                         className="w-full border border-red-300 text-red-600 hover:bg-red-50 rounded-lg font-bold text-xs py-2"
                       >
                         撤销申请
@@ -1076,7 +1088,7 @@ export default function Services() {
                   <p className="font-bold">✗ 入会申请被驳回</p>
                   <p className="text-red-700 leading-relaxed">驳回原因：{membershipApplication?.rejectReason || "申请书不符合要求"}</p>
                   <button
-                    onClick={() => { setAppFlowStep(1); setMemberAppFile(null); setMemberAppFileName(""); }}
+                    onClick={() => { setAppFlowStep(1); setMemberAppFile(null); }}
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold text-xs w-full"
                   >
                     重新提交申请
@@ -1269,9 +1281,14 @@ export default function Services() {
                       : "成为学会会员后，方可绑定专业分会。"}
                   </p>
                 </div>
-                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded">
-                  已绑定 {boundBranches.length + 1} / 11 个分会
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="bg-[#D9C5A0]/20 text-[#715a3e] text-[10px] font-bold px-2 py-0.5 rounded">
+                    总学会：默认已绑定
+                  </span>
+                  <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded">
+                    分会：已绑定 {boundBranches.length} / 11
+                  </span>
+                </div>
               </div>
 
               {isRegular && (
@@ -1292,7 +1309,7 @@ export default function Services() {
                       <h4 className="font-bold text-[#002B49] text-sm">中国古生物学会（总学会）</h4>
                       <span className="text-[9px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">已绑定</span>
                     </div>
-                    <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">中国古生物学会是由全国古生物科技工作者组成的学术性、非营利性社会团体，致力于推动古生物学领域的学术交流、科学普及与学科发展。</p>
+                    <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{TOTAL_SOCIETY_INTRO}</p>
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-2">
                     <button
@@ -1430,16 +1447,16 @@ export default function Services() {
         setEditingReg(null);
       };
 
-      const handleAbstractMockUpload = () => {
+      const handleAbstractUpload = () => {
         if (isDeadlinePassed(conf?.abstractDeadline)) {
           toast.error(`摘要上传已截止（截止日期：${conf?.abstractDeadline}）`);
           return;
         }
-        const mockName = `Abstract_${currentUser?.name || "Member"}_2026.docx`;
-        const mockUrl = `https://example.com/abstracts/${encodeURIComponent(mockName)}`;
-        setRegForm((prev: any) => ({ ...prev, abstractFileName: mockName, abstractFileUrl: mockUrl }));
-        uploadAbstractFile(editingReg!, mockUrl, mockName);
-        toast.success("学术论文摘要文件上传成功！");
+        pickAndReadFile(".doc,.docx", 10, (file) => {
+          setRegForm((prev: any) => ({ ...prev, abstractFileName: file.name, abstractFileUrl: file.dataUrl }));
+          uploadAbstractFile(editingReg!, file.dataUrl, file.name);
+          toast.success("学术论文摘要文件上传成功！");
+        });
       };
 
       const handleAbstractDelete = () => {
@@ -1570,10 +1587,10 @@ export default function Services() {
                           <div className="flex gap-4 items-center">
                             <button 
                               type="button"
-                              onClick={handleAbstractMockUpload}
+                              onClick={handleAbstractUpload}
                               className="px-4 py-2 border border-[#002B49] text-[#002B49] rounded font-bold hover:bg-slate-50 flex items-center gap-1"
                             >
-                              <span className="material-symbols-outlined text-sm">upload_file</span> 模拟上传摘要
+                              <span className="material-symbols-outlined text-sm">upload_file</span> 上传摘要
                             </button>
                             {regForm.abstractFileName && (
                               <div className="flex items-center gap-1.5 text-green-700 font-bold bg-green-50 px-3 py-1.5 rounded border border-green-200">
@@ -1621,7 +1638,7 @@ export default function Services() {
                               <p className="text-xs font-bold text-green-700 truncate">{regForm.abstractFileName}</p>
                               <p className="text-[10px] text-green-500">已上传</p>
                             </div>
-                            <button type="button" onClick={handleAbstractMockUpload} className="text-xs text-[#002B49] font-bold hover:underline flex items-center gap-1">
+                            <button type="button" onClick={handleAbstractUpload} className="text-xs text-[#002B49] font-bold hover:underline flex items-center gap-1">
                               <span className="material-symbols-outlined text-sm">refresh</span>重新上传
                             </button>
                             <button type="button" onClick={handleAbstractDelete} className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1">
@@ -1631,7 +1648,7 @@ export default function Services() {
                         ) : (
                           <button
                             type="button"
-                            onClick={handleAbstractMockUpload}
+                            onClick={handleAbstractUpload}
                             className="px-4 py-3 border-2 border-dashed border-slate-300 hover:border-[#002B49] rounded-lg font-bold text-xs text-slate-500 hover:text-[#002B49] transition-colors w-full flex items-center justify-center gap-2"
                           >
                             <span className="material-symbols-outlined text-sm">upload_file</span> 上传摘要文档 (.doc / .docx)
@@ -1841,13 +1858,17 @@ export default function Services() {
       const conf = conferences.find(c => c.id === confPaymentTarget);
 
       const handleConfVoucherUpload = () => {
-        setConfVoucher("conference_wire_receipt_1200.png");
-        toast.success("会议注册费汇款凭证上传成功！");
+        pickAndReadFile(".jpg,.jpeg,.png,.pdf", 5, (file) => {
+          setConfVoucher(file);
+          toast.success("会议注册费汇款凭证上传成功！");
+        });
       };
 
       const handleConfInvoiceUpload = () => {
-        setConfInvoice("invoice_title_school_tax_id.pdf");
-        toast.success("开票单位税务信息上传成功！");
+        pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
+          setConfInvoice(file);
+          toast.success("电子发票上传成功！");
+        });
       };
 
       const handleConfPaymentSubmit = () => {
@@ -1855,7 +1876,8 @@ export default function Services() {
           toast.error("请先上传会议费银行转账汇款回单！");
           return;
         }
-        payConference(confPaymentTarget, mockVoucherUrl, mockVoucherUrl, conf?.fee || 1000);
+        const feeAmount = getConferenceFee(confPaymentTarget);
+        payConference(confPaymentTarget, confVoucher.dataUrl, confInvoice?.dataUrl || "", feeAmount);
         
         // Reset local states
         setConfPaymentTarget(null);
@@ -1950,12 +1972,12 @@ export default function Services() {
                   {confVoucher ? (
                     <div className="text-green-700 font-bold text-xs flex items-center justify-center gap-1">
                       <span className="material-symbols-outlined">check_circle</span>
-                      已上传：{confVoucher}
+                      已上传：{confVoucher.name}
                     </div>
                   ) : (
                     <div className="text-slate-500 text-xs">
                       <span className="material-symbols-outlined text-3xl text-slate-400 mb-1">cloud_upload</span>
-                      <p className="font-bold text-[#002B49]">点击模拟上传会议费银行汇款回单</p>
+                      <p className="font-bold text-[#002B49]">点击上传会议费银行汇款回单</p>
                     </div>
                   )}
                 </div>
@@ -1972,7 +1994,7 @@ export default function Services() {
                   {confInvoice ? (
                     <div className="text-[#715a3e] font-bold text-xs flex items-center justify-center gap-1">
                       <span className="material-symbols-outlined">receipt</span>
-                      已上传发票税号资料：{confInvoice}
+                      已上传发票税号资料：{confInvoice.name}
                     </div>
                   ) : (
                     <div className="text-slate-500 text-xs">
@@ -2282,8 +2304,10 @@ export default function Services() {
                     })()}
                     <div className="flex gap-2">
                       <button onClick={() => {
-                        setConfInvoice("invoice_electronic_conf.pdf");
-                        submitConferenceInvoice(conf!.id, mockVoucherUrl);
+                        pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
+                          setConfInvoice(file);
+                          submitConferenceInvoice(conf!.id, file.dataUrl);
+                        });
                       }} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1">
                         <span className="material-symbols-outlined text-sm">receipt_long</span> 上传发票
                       </button>
@@ -2312,8 +2336,10 @@ export default function Services() {
                       <p className="text-orange-700 mt-1">截止日：{reg.invoiceDeadline || "--"}。请尽快上传发票完成报名确认。</p>
                     </div>
                     <button onClick={() => {
-                      setConfInvoice("invoice_electronic_conf.pdf");
-                      submitConferenceInvoice(conf!.id, mockVoucherUrl);
+                      pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
+                        setConfInvoice(file);
+                        submitConferenceInvoice(conf!.id, file.dataUrl);
+                      });
                     }} className="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-bold text-xs">
                       立即上传发票
                     </button>
@@ -2345,8 +2371,10 @@ export default function Services() {
                     <p className="font-bold">✗ 发票终审被驳回</p>
                     {reg.invoiceRejectReason && <p className="text-red-600">原因：{reg.invoiceRejectReason}</p>}
                     <button onClick={() => {
-                      setConfInvoice("invoice_electronic_conf_v2.pdf");
-                      submitConferenceInvoice(conf!.id, mockVoucherUrl);
+                      pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
+                        setConfInvoice(file);
+                        submitConferenceInvoice(conf!.id, file.dataUrl);
+                      });
                     }} className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded font-bold text-xs">
                       重新上传发票
                     </button>
@@ -2628,6 +2656,16 @@ export default function Services() {
           {visibleConfs.map(c => {
             const reg = conferenceRegs[c.id];
             const isBound = isSocietyAccessible(boundBranches, c.branchId);
+            const fc = getConferenceFeeConfig(c.id);
+            const userFeeType = isLoggedIn ? getUserFeeType() : null;
+            const feeFieldMap: Record<ConferenceFeeType, number> = {
+              student_member: fc.studentMember,
+              non_student_member: fc.nonStudentMember,
+              student_non_member: fc.studentNonMember,
+              non_student_non_member: fc.nonStudentNonMember,
+            };
+            const userFee = userFeeType ? feeFieldMap[userFeeType] : fc.nonStudentNonMember;
+            const channelClosed = isLoggedIn && userFeeType !== null && userFee <= 0;
             return (
               <div key={c.id} className="bg-white border border-[#E5E1DA] rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex flex-col md:flex-row md:items-start gap-4">
@@ -2637,6 +2675,11 @@ export default function Services() {
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#002B49]/8 text-[#002B49] ${c.branchId === TOTAL_SOCIETY_ID ? "bg-[#D9C5A0]/30 text-[#715a3e]" : ""}`}>
                         {c.branchId === TOTAL_SOCIETY_ID ? "★ " : ""}{c.branchName}
                       </span>
+                      {channelClosed && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                          当前身份通道关闭
+                        </span>
+                      )}
                       {reg && (
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           CONFERENCE_STATUS_COLOR[reg.status] ||
@@ -2650,34 +2693,40 @@ export default function Services() {
                         </span>
                       )}
                     </div>
-                    <h3 className="font-bold text-[#002B49] text-base mb-2">{c.title}</h3>
+                    <h3
+                      className="font-bold text-[#002B49] text-base mb-2 cursor-pointer hover:text-[#715a3e] transition-colors"
+                      onClick={() => setNoticePreviewConfId(c.id)}
+                    >
+                      {c.title}
+                    </h3>
                     <p className="text-xs text-slate-500 leading-relaxed mb-3 line-clamp-2">{c.desc}</p>
                     <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
                       <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">calendar_month</span>{c.time}</span>
                       <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">location_on</span>{c.location}</span>
-                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">payments</span>注册费 ¥{(() => {
-                        const fc = getConferenceFeeConfig(c.id);
-                        if (isLoggedIn) {
-                          const uft = getUserFeeType();
-                          const fieldMap: Record<ConferenceFeeType, number> = {
-                            student_member: fc.studentMember,
-                            non_student_member: fc.nonStudentMember,
-                            student_non_member: fc.studentNonMember,
-                            non_student_non_member: fc.nonStudentNonMember,
-                          };
-                          return fieldMap[uft] || fc.nonStudentMember;
-                        }
-                        return fc.nonStudentMember;
-                      })()}</span>
+                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">payments</span>
+                        {channelClosed ? (
+                          <span className="text-amber-600 font-bold">报名通道已关闭（{CONFERENCE_FEE_TYPE_LABEL[userFeeType!]}）</span>
+                        ) : (
+                          <>注册费 ¥{userFee}</>
+                        )}
+                      </span>
                       <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">schedule</span>缴费截止 {c.feeDeadline}</span>
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 min-w-[140px]">
                     <button
-                      onClick={() => setSelectedConference(c.id)}
-                      className="text-[#715a3e] font-bold hover:underline flex items-center gap-0.5 text-[10px] justify-end"
+                      onClick={() => setNoticePreviewConfId(c.id)}
+                      className="bg-[#002B49] text-white px-4 py-2 rounded font-bold text-xs hover:bg-[#001f35] transition-colors text-center flex items-center justify-center gap-1"
                     >
-                      会议详情 <span className="material-symbols-outlined text-sm">chevron_right</span>
+                      <span className="material-symbols-outlined text-[14px]">description</span>
+                      查看会议通知
+                    </button>
+                    <button
+                      onClick={() => setSelectedConference(c.id)}
+                      disabled={channelClosed}
+                      className={`text-[#715a3e] font-bold flex items-center gap-0.5 text-[10px] justify-end ${channelClosed ? "opacity-40 cursor-not-allowed" : "hover:underline"}`}
+                    >
+                      {channelClosed ? "当前身份不可报名" : "报名与详情"} <span className="material-symbols-outlined text-sm">chevron_right</span>
                     </button>
                     {/* Regular users need to choose membership path first */}
                     {userType === "regular" && (
@@ -2870,12 +2919,12 @@ export default function Services() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">上传缴费凭证 *</label>
                     <div
                       className="border-2 border-dashed border-[#E5E1DA] rounded-lg p-4 text-center cursor-pointer hover:border-[#c8a96e] transition-colors"
-                      onClick={() => setConfVoucher("voucher_uploaded.jpg")}
+                      onClick={() => pickAndReadFile(".jpg,.jpeg,.png,.pdf", 5, (file) => { setConfVoucher(file); toast.success("凭证上传成功"); })}
                     >
                       {confVoucher ? (
-                        <p className="text-green-600 font-bold text-xs">✓ {confVoucher}</p>
+                        <p className="text-green-600 font-bold text-xs">✓ {confVoucher.name}</p>
                       ) : (
-                        <p className="text-slate-400 text-xs">点击上传凭证图片（JPG/PNG ≪5MB）</p>
+                        <p className="text-slate-400 text-xs">点击上传凭证图片（JPG/PNG/PDF ≤5MB）</p>
                       )}
                     </div>
                   </div>
@@ -2883,12 +2932,12 @@ export default function Services() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">上传电子发票（可选）</label>
                     <div
                       className="border-2 border-dashed border-[#E5E1DA] rounded-lg p-4 text-center cursor-pointer hover:border-[#c8a96e] transition-colors"
-                      onClick={() => setConfInvoice("invoice_uploaded.pdf")}
+                      onClick={() => pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => { setConfInvoice(file); toast.success("发票上传成功"); })}
                     >
                       {confInvoice ? (
-                        <p className="text-green-600 font-bold text-xs">✓ {confInvoice}</p>
+                        <p className="text-green-600 font-bold text-xs">✓ {confInvoice.name}</p>
                       ) : (
-                        <p className="text-slate-400 text-xs">点击上传发票（JPG/PNG/PDF ≪10MB）</p>
+                        <p className="text-slate-400 text-xs">点击上传发票（JPG/PNG/PDF ≤10MB）</p>
                       )}
                     </div>
                   </div>
@@ -2896,7 +2945,7 @@ export default function Services() {
                     disabled={!confVoucher}
                     onClick={() => {
                       if (confVoucher) {
-                        payConference(confPaymentTarget, confVoucher, confInvoice || "", c.fee);
+                        payConference(confPaymentTarget, confVoucher.dataUrl, confInvoice?.dataUrl || "", getConferenceFee(confPaymentTarget));
                         setConfPaymentTarget(null);
                       }
                     }}
@@ -3341,6 +3390,86 @@ export default function Services() {
     const setSelectedId = setSelectedBranchId;
     const selected = branchesData.find(b => b.id === selectedId);
 
+    if (selectedId === TOTAL_SOCIETY_ID) {
+      return (
+        <div className="max-w-7xl mx-auto py-10 px-6">
+          <div className="flex items-center gap-2 text-xs text-slate-500 mb-8">
+            <button onClick={() => setSelectedId(null)} className="hover:text-[#002B49] transition-colors flex items-center gap-1 font-bold">
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>专业分会列表
+            </button>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span className="text-[#002B49] font-bold">{ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-white border-2 border-[#D9C5A0] rounded-xl overflow-hidden shadow-sm">
+                <div className="h-2 bg-gradient-to-r from-[#D9C5A0] via-[#c8a96e] to-[#D9C5A0]" />
+                <div className="p-6">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#D9C5A0] to-[#c8a96e] flex items-center justify-center mb-4 shadow-md">
+                    <span className="material-symbols-outlined text-[28px] text-white">account_balance</span>
+                  </div>
+                  <h2 className="text-xl font-bold text-[#002B49] mb-1" style={{ fontFamily: "Georgia, serif" }}>{ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}</h2>
+                  <p className="text-xs text-slate-400 mb-5">总学会 · 学术年会与重要论坛发布</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {TOTAL_SOCIETY_TAGS.map(tag => (
+                      <span key={tag} className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#D9C5A0]/10 text-[#715a3e] border border-[#D9C5A0]/30">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white border border-[#E5E1DA] rounded-xl p-8 shadow-sm">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                  <span className="material-symbols-outlined text-[#715a3e]">info</span>
+                  <h3 className="text-lg font-bold text-[#002B49]" style={{ fontFamily: "Georgia, serif" }}>模块说明</h3>
+                </div>
+                <p className="text-sm text-slate-700 leading-8 tracking-wide">{TOTAL_SOCIETY_INTRO}</p>
+              </div>
+              <div className="bg-white border border-[#E5E1DA] rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-[#002B49] text-sm flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px]">event</span>
+                    已发布的会议与活动
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setConferenceBranchFilter(TOTAL_SOCIETY_ID);
+                      setActiveTab("conference");
+                      setSelectedId(null);
+                    }}
+                    className="text-xs font-bold text-[#002B49] hover:text-[#715a3e] transition-colors flex items-center gap-1"
+                  >
+                    查看全部会议
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {TOTAL_SOCIETY_MEETINGS.map(meeting => (
+                    <button
+                      key={meeting.id}
+                      onClick={() => {
+                        setConferenceBranchFilter(TOTAL_SOCIETY_ID);
+                        setActiveTab("conference");
+                        setSelectedId(null);
+                      }}
+                      className="w-full text-left border border-[#E5E1DA] rounded-lg p-4 hover:border-[#D9C5A0] hover:bg-[#D9C5A0]/5 transition-all"
+                    >
+                      <p className="font-bold text-[#002B49] text-sm mb-1">{meeting.title}</p>
+                      <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">schedule</span>{meeting.time}</span>
+                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">location_on</span>{meeting.location}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (selectedId && selected) {
       return (
         <div className="max-w-7xl mx-auto py-10 px-6">
@@ -3416,10 +3545,18 @@ export default function Services() {
                   </div>
                   <div>
                     <h4 className="font-bold text-[#002B49] text-sm mb-1">了解更多</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed mb-3">如需了解该分会的最新动态、会议通知及学术资源，请访问中国古生物学会官方网站或联系学会秘书处。</p>
-                    <a href="http://www.chinapsc.cn/zyfh/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-[#002B49] hover:text-[#715a3e] transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>访问中国古生物学会官网专业分会页面
-                    </a>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-3">如需了解该分会的最新动态、会议通知及学术资源，请在本站查看该分会发布的学术会议。</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(null);
+                        setConferenceBranchFilter(BRANCH_SERVICES_ID_MAP[selected.id] || selected.id);
+                        setActiveTab("conference");
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#002B49] hover:text-[#715a3e] transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">event</span>查看该分会会议
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3448,9 +3585,9 @@ export default function Services() {
           <p className="text-slate-500 text-xs">总学会 + 11个专业分会（委员会），点击任意卡片查看详细介绍。</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Phase 2: 总学会卡片 — 金色边框置顶 */}
+          {/* 总学会卡片 — 点击进入总学会会议模块 */}
           <div
-            onClick={() => window.open("http://www.chinapsc.cn/", "_blank")}
+            onClick={() => setSelectedId(TOTAL_SOCIETY_ID)}
             className="bg-white border-2 border-[#D9C5A0] rounded-xl p-6 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden sm:col-span-2 lg:col-span-3"
           >
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#D9C5A0] via-[#c8a96e] to-[#D9C5A0]" />
@@ -3460,10 +3597,21 @@ export default function Services() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-bold text-[#002B49] text-base group-hover:text-[#715a3e] transition-colors">中国古生物学会（总学会）</h3>
-                  <span className="text-[9px] font-bold bg-[#D9C5A0]/20 text-[#715a3e] px-2 py-0.5 rounded-full">上级单位</span>
+                  <h3 className="font-bold text-[#002B49] text-base group-hover:text-[#715a3e] transition-colors">{ALL_SOCIETY_UNITS[TOTAL_SOCIETY_ID]}</h3>
+                  <span className="text-[9px] font-bold bg-[#D9C5A0]/20 text-[#715a3e] px-2 py-0.5 rounded-full">总学会</span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2">中国古生物学会是由全国古生物科技工作者自愿组成的学术性、非营利性社会团体，下设11个专业分会，致力于推动古生物学领域的学术交流、科学普及与学科发展。</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2 mb-3">{TOTAL_SOCIETY_INTRO}</p>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {TOTAL_SOCIETY_TAGS.map(tag => (
+                    <span key={tag} className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#D9C5A0]/10 text-[#715a3e] border border-[#D9C5A0]/30">{tag}</span>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">已发布 {TOTAL_SOCIETY_MEETINGS.length} 场活动</span>
+                  <span className="flex items-center text-xs font-bold gap-1 text-[#715a3e] group-hover:text-[#002B49] transition-colors">
+                    查看详情<span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -3583,6 +3731,24 @@ export default function Services() {
                     <p className="text-slate-500">缴费截止：{previewConf.feeDeadline} · 摘要截止：{previewConf.abstractDeadline}</p>
                   </>
                 )}
+              </div>
+              <div className="p-4 border-t border-[#E5E1DA] bg-slate-50 flex flex-wrap gap-2 justify-end sticky bottom-0">
+                <button
+                  onClick={() => setNoticePreviewConfId(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg font-bold text-xs"
+                >
+                  关闭
+                </button>
+                <button
+                  onClick={() => {
+                    const confId = previewConf.id;
+                    setNoticePreviewConfId(null);
+                    setSelectedConference(confId);
+                  }}
+                  className="px-4 py-2 bg-[#002B49] text-white rounded-lg font-bold text-xs hover:bg-[#001f35]"
+                >
+                  前往报名
+                </button>
               </div>
             </div>
           </div>

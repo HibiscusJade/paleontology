@@ -151,6 +151,8 @@ export interface ConferenceRecord {
   // Phase 1: 四类会议费配置
   feeConfig?: ConferenceFeeConfig;
   // Phase 2: 文件管理
+  publicNoticeUrl?: string;
+  publicNoticeName?: string;
   stampedNoticeUrl?: string;
   stampedNoticeName?: string;
   abstractTemplateUrl?: string;
@@ -180,6 +182,8 @@ export interface ConferenceData {
   // Phase 1: 四类会议费配置
   feeConfig?: ConferenceFeeConfig;
   // Phase 2: 文件管理
+  publicNoticeUrl?: string;
+  publicNoticeName?: string;
   stampedNoticeUrl?: string;
   stampedNoticeName?: string;
   abstractTemplateUrl?: string;
@@ -239,6 +243,8 @@ export interface GlobalStats {
   nonStudentMembershipFeeCount: number;
   totalConferenceFee: number;
   perSocietyConferenceFee: Record<string, number>;
+  /** 12 学会 × 四类会议费实收矩阵 */
+  perSocietyFeeBreakdown: Record<string, FeeBreakdown>;
 }
 
 export interface SocietyStats {
@@ -275,6 +281,7 @@ export interface ConferenceStats {
     maleDouble: number;
     femaleSingle: number;
     femaleDouble: number;
+    selfArranged: number;
   };
   fieldTrips: Record<string, { total: number; male: number; female: number }>;
 }
@@ -563,6 +570,20 @@ const DEFAULT_CONFERENCES: ConferenceRecord[] = [
     fieldTripDeadline: "2026-09-08",
     fieldTripRoutes: [
       { id: "s1-pre-1", phase: "pre", name: "南京汤山地质考察", order: 1 },
+      { id: "s1-pre-2", phase: "pre", name: "宁镇山脉寒武纪剖面", order: 2 },
+      { id: "s1-pre-3", phase: "pre", name: "茅山三叠纪化石产地", order: 3 },
+      { id: "s1-pre-4", phase: "pre", name: "六合雨花石产地考察", order: 4 },
+      { id: "s1-pre-5", phase: "pre", name: "溧阳上黄中华曙猿遗址", order: 5 },
+      { id: "s1-dur-1", phase: "during", name: "会议期间南京地质博物馆", order: 6 },
+      { id: "s1-dur-2", phase: "during", name: "南京大学古生物标本馆", order: 7 },
+      { id: "s1-dur-3", phase: "during", name: "中科院南京地质古生物研究所", order: 8 },
+      { id: "s1-dur-4", phase: "during", name: "江宁汤山猿人洞", order: 9 },
+      { id: "s1-dur-5", phase: "during", name: "栖霞山二叠纪剖面", order: 10 },
+      { id: "s1-post-1", phase: "post", name: "金坛上黄动物群产地", order: 11 },
+      { id: "s1-post-2", phase: "post", name: "句容下蜀山剖面", order: 12 },
+      { id: "s1-post-3", phase: "post", name: "宜兴张渚泥盆纪剖面", order: 13 },
+      { id: "s1-post-4", phase: "post", name: "苏州阳山碑材地质遗迹", order: 14 },
+      { id: "s1-post-5", phase: "post", name: "无锡惠山古生物点", order: 15 },
     ],
     status: "published",
     sessions: [{ id: "s1", name: "微体化石与生物地层学" }, { id: "s2", name: "微体古生态与古环境" }],
@@ -2168,6 +2189,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const feeConfigs = JSON.parse(localStorage.getItem("paleo_admin_conference_fee_configs") || "{}");
       feeConfigs[newConf.id] = data.feeConfig;
       localStorage.setItem("paleo_admin_conference_fee_configs", JSON.stringify(feeConfigs));
+      localStorage.setItem("paleo_conference_fee_configs", JSON.stringify(feeConfigs));
     } else {
       const feeMap = JSON.parse(localStorage.getItem("paleo_admin_conference_fee_config") || "{}");
       feeMap[newConf.id] = data.memberFee;
@@ -2316,6 +2338,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const perSocietyConferenceFee: Record<string, number> = {};
+    const perSocietyFeeBreakdown: Record<string, FeeBreakdown> = {};
+    for (const id of Object.keys(ALL_SOCIETY_UNITS)) {
+      perSocietyFeeBreakdown[id] = createEmptyFeeBreakdown();
+    }
     let totalConferenceFee = 0;
 
     for (const conf of confs) {
@@ -2323,6 +2349,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       for (const attendee of attendees) {
         if (!REVENUE_CONFERENCE_STATUSES.has(attendee.paymentStatus)) continue;
         perSocietyConferenceFee[conf.branchId] = (perSocietyConferenceFee[conf.branchId] || 0) + attendee.feeAmount;
+        if (!perSocietyFeeBreakdown[conf.branchId]) {
+          perSocietyFeeBreakdown[conf.branchId] = createEmptyFeeBreakdown();
+        }
+        accumulateFeeBreakdown(perSocietyFeeBreakdown[conf.branchId], attendee.feeType, attendee.feeAmount);
         totalConferenceFee += attendee.feeAmount;
       }
     }
@@ -2344,6 +2374,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       nonStudentMembershipFeeCount,
       totalConferenceFee,
       perSocietyConferenceFee,
+      perSocietyFeeBreakdown,
     };
   }, [getAllMembers, getAllConferences]);
 
@@ -2421,7 +2452,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         studentNonMembers: 0,
         nonStudentNonMembers: 0,
         feeBreakdown: createEmptyFeeBreakdown(),
-        accommodation: { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0 },
+        accommodation: { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0, selfArranged: 0 },
         fieldTrips: {
           pre: { total: 0, male: 0, female: 0 },
           during: { total: 0, male: 0, female: 0 },
@@ -2442,7 +2473,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const oralReports = attendees.filter(a => a.reportType === "口头报告").length;
     const posterReports = attendees.filter(a => a.reportType === "展板报告").length;
 
-    const accommodation = { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0 };
+    const accommodation = { totalRooms: 0, maleSingle: 0, maleDouble: 0, femaleSingle: 0, femaleDouble: 0, selfArranged: 0 };
     for (const attendee of attendees) {
       switch (attendee.accommodationType) {
         case ACCOMMODATION_TYPE.MALE_SINGLE:
@@ -2456,6 +2487,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           break;
         case ACCOMMODATION_TYPE.FEMALE_DOUBLE:
           accommodation.femaleDouble += 1;
+          break;
+        case ACCOMMODATION_TYPE.SELF_ARRANGED:
+          accommodation.selfArranged += 1;
           break;
       }
     }
