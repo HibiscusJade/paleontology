@@ -23,6 +23,8 @@ export const CMS_SECTION_META: Record<string, CmsSectionMeta> = {
   branch: { title: "分会栏目", subtitle: "维护本分站概况、工作动态等页面内容" },
   media: { title: "媒体库", subtitle: "统一管理图片与附件" },
   settings: { title: "站点配置", subtitle: "版权信息、联系方式与首页快捷入口" },
+  publish: { title: "新闻发布", subtitle: "会议通知、党务公开、重要新闻三类内容管理，支持背景图与原文件下载" },
+  "public-files": { title: "公开文件管理", subtitle: "管理公开文件下载区（文档/音频/影视/照片），无需登录即可下载" },
 };
 
 export const CMS_SECTIONS = Object.keys(CMS_SECTION_META);

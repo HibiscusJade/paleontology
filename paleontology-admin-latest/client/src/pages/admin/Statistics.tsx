@@ -713,15 +713,22 @@ function SocietyStatistics({ onRequestGlobalView }: { onRequestGlobalView: () =>
   const [isExporting, setIsExporting] = useState(false);
   const allConfs = getAllConferences();
 
+  // 虚拟值：代表"全平台汇总"，选中后跳转总览 Tab
+  const GLOBAL_AGGREGATE_VALUE = "__global__";
+
   const societyOptions = useMemo(() => {
-    return Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => ({
-      value: id,
-      label: id === TOTAL_SOCIETY_ID ? `${name}（全平台汇总）` : name,
-    }));
+    const options = [
+      { value: GLOBAL_AGGREGATE_VALUE, label: "(全平台汇总)" },
+      ...Object.entries(ALL_SOCIETY_UNITS).map(([id, name]) => ({
+        value: id,
+        label: name,
+      })),
+    ];
+    return options;
   }, []);
 
   const handleSocietyChange = (value: string) => {
-    if (value === TOTAL_SOCIETY_ID) {
+    if (value === GLOBAL_AGGREGATE_VALUE) {
       toast.info("已切换至全平台汇总（总览）");
       onRequestGlobalView();
       return;
@@ -781,7 +788,7 @@ function SocietyStatistics({ onRequestGlobalView }: { onRequestGlobalView: () =>
         <Card>
           <CardContent className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2 text-center px-4">
             <span>请从上方下拉菜单中选择一个分会以查看该学会累计统计</span>
-            <span className="text-xs">选择「中国古生物学会（总学会）（全平台汇总）」将跳转至「总览」查看 12 学会汇总数据</span>
+            <span className="text-xs">选择「(全平台汇总)」将跳转至「总览」查看 12 学会汇总数据；选择「中国古生物学会（总学会）」查看总学会自身统计</span>
           </CardContent>
         </Card>
       ) : stats ? (

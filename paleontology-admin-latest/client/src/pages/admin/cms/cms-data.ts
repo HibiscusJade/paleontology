@@ -1,5 +1,119 @@
 export type CmsContentStatus = "draft" | "published" | "archived";
 
+// ── 新闻发布（会议通知 / 党务公开 / 重要新闻） ─────────────────────────────
+
+export type CmsBoardType = "meeting_notice" | "party_public" | "important_news";
+
+export const CMS_BOARD_TYPE_LABELS: Record<CmsBoardType, string> = {
+  meeting_notice: "会议通知",
+  party_public: "党务公开",
+  important_news: "重要新闻",
+};
+
+export type CmsOriginalFileCategory = "document" | "audio" | "video" | "photo";
+
+export const CMS_FILE_CATEGORY_LABELS: Record<CmsOriginalFileCategory, string> = {
+  document: "文档类",
+  audio: "音频类",
+  video: "影视类",
+  photo: "照片类",
+};
+
+export interface CmsOriginalFile {
+  name: string;
+  url: string;
+  category: CmsOriginalFileCategory;
+}
+
+export interface CmsPublishArticle {
+  id: string;
+  boardType: CmsBoardType;
+  title: string;
+  summary: string;
+  content: string;
+  coverUrl: string;
+  publishDate: string;
+  status: CmsContentStatus;
+  originalFile: CmsOriginalFile | null;
+  createdBy: string;
+}
+
+export interface CmsBoardCovers {
+  meeting_notice: string;
+  party_public: string;
+  important_news: string;
+}
+
+// ── 公开文件下载区 ─────────────────────────────────────────────────────────
+
+export type CmsPublicFileCategory = "document" | "audio" | "video" | "photo";
+
+export const CMS_PUBLIC_FILE_CATEGORY_LABELS: Record<CmsPublicFileCategory, string> = {
+  document: "文档类",
+  audio: "音频类",
+  video: "影视类",
+  photo: "照片类",
+};
+
+/** 支持格式清单（含格式提示，供管理端展示） */
+export const CMS_PUBLIC_FILE_FORMAT_HINTS: Record<CmsPublicFileCategory, { formats: string; convert: string[] }> = {
+  document: {
+    formats: ".doc / .docx（Word）、.pdf（PDF）、.xls / .xlsx（Excel）、.ppt / .pptx（PowerPoint）、.zip / .rar（压缩包）",
+    convert: [
+      "Word/Excel/PPT → PDF：Microsoft Office / WPS →「另存为 PDF」",
+      "旧格式（.doc/.xls/.ppt）→ 新格式：Microsoft Office「另存为」选择新版格式",
+      "多文件打包 → ZIP：Windows 右键「发送到压缩文件夹」/ Mac「压缩」",
+    ],
+  },
+  audio: {
+    formats: ".mp3（MP3）、.wav（WAV）、.m4a（M4A）",
+    convert: [
+      "任意音频 → MP3：Audacity（免费）→「导出为 MP3」",
+      "视频提取音频 → MP3：FFmpeg 命令 ffmpeg -i 视频.mp4 -q:a 0 音频.mp3",
+      "手机录音（AAC/AMR）→ MP3：格式工厂（免费）批量转换",
+    ],
+  },
+  video: {
+    formats: ".mp4（MP4）、.avi（AVI）、.mov（MOV）、.wmv（WMV）、.mkv（MKV）、.flv（FLV）",
+    convert: [
+      "任意格式 → MP4：HandBrake（免费）→ 选 MP4 容器 + H.264 编码，兼容性最佳",
+      "MKV/AVI → MP4：格式工厂（Windows 免费）→「视频→MP4」",
+      "MOV（iPhone/Mac）→ MP4：ffmpeg -i 视频.mov -c copy 视频.mp4",
+      "压缩大视频：HandBrake 降低分辨率（1080p→720p）或调整码率",
+    ],
+  },
+  photo: {
+    formats: ".jpeg / .jpg（JPEG）、.png（PNG）、.gif（GIF）、.tiff（TIFF）",
+    convert: [
+      "任意图片 → JPEG/PNG：Windows 画图 / Mac 预览「导出」",
+      "RAW/PSD → JPG：Photoshop「存储为 Web」/ GIMP（免费）「导出为」",
+      "多图批量转换：IrfanView（Windows 免费）→「批量转换」",
+      "TIFF（高质量印刷原稿）→ JPEG：Photoshop / GIMP 导出时调整品质",
+    ],
+  },
+};
+
+export interface CmsPublicFile {
+  id: string;
+  title: string;
+  category: CmsPublicFileCategory;
+  fileName: string;
+  fileUrl: string;
+  fileSize: string;
+  remark: string;
+  downloadCount: number;
+  uploadDate: string;
+  deleted: boolean;
+}
+
+/** 文件分类对应的格式扩展名白名单（用于前端提示） */
+export const CMS_PUBLIC_FILE_EXT_MAP: Record<CmsPublicFileCategory, string[]> = {
+  document: ["doc", "docx", "pdf", "xls", "xlsx", "ppt", "pptx", "zip", "rar"],
+  audio: ["mp3", "wav", "m4a"],
+  video: ["mp4", "avi", "mov", "wmv", "mkv", "flv"],
+  photo: ["jpeg", "jpg", "png", "gif", "tiff"],
+};
+
 export interface CmsAttachment {
   id: string;
   name: string;
@@ -194,10 +308,13 @@ export interface CmsDatabase {
   timelineNodes: CmsTimelineNode[];
   media: CmsMediaItem[];
   siteConfig: CmsSiteConfig;
+  publishArticles: CmsPublishArticle[];
+  boardCovers: CmsBoardCovers;
+  publicFiles: CmsPublicFile[];
 }
 
 export const CMS_STORAGE_KEY = "paleo_admin_cms_db";
-export const CMS_SCHEMA_VERSION = 2;
+export const CMS_SCHEMA_VERSION = 3;
 
 export const PARTY_COLUMNS = [
   { code: "party_announcement", label: "通知公告" },
@@ -626,6 +743,107 @@ const DEFAULT_CMS: CmsDatabase = {
       { id: "ql-3", label: "会议报名", path: "/services", icon: "event", sort: 3, enabled: true },
     ],
   },
+  publishArticles: [
+    {
+      id: "pub-1",
+      boardType: "meeting_notice",
+      title: "关于举办2026年中国古生物学会学术年会的第一轮通知",
+      summary: "中国古生物学会学术年会定于2026年9月在南京召开，现发布第一轮通知，请各位会员关注。",
+      content: "<p>经学会理事会审议，中国古生物学会2026年学术年会将于2026年9月18日至21日在南京举行。本次年会以【古生物学与地球生命演化】为主题，欢迎广大会员踊跃投稿与参会。</p><p>报名与投稿详情将于第二轮通知发布，敬请关注。</p>",
+      coverUrl: "",
+      publishDate: "2026-06-20",
+      status: "published",
+      originalFile: {
+        name: "2026年学术年会第一轮通知.pdf",
+        url: "/media/meeting-notice-2026.pdf",
+        category: "document",
+      },
+      createdBy: "admin",
+    },
+    {
+      id: "pub-2",
+      boardType: "party_public",
+      title: "中国古生物学会功能性党委2026年上半年工作总结",
+      summary: "学会功能性党委认真贯彻党的方针政策，积极开展党建工作，现予以公开。",
+      content: "<p>2026年上半年，学会功能性党委围绕中心工作，扎实推进党建各项任务，组织全体党员开展专题学习6次，召开组织生活会2次，发展新党员1名。</p><p>下半年将继续深入学习贯彻习近平新时代中国特色社会主义思想，持续推进学习型党组织建设。</p>",
+      coverUrl: "",
+      publishDate: "2026-06-15",
+      status: "published",
+      originalFile: {
+        name: "2026年上半年党建工作总结.docx",
+        url: "/media/party-summary-2026.docx",
+        category: "document",
+      },
+      createdBy: "admin",
+    },
+    {
+      id: "pub-3",
+      boardType: "important_news",
+      title: "中国古生物学会天体生物学分会正式成立",
+      summary: "中国古生物学会天体生物学分会成立大会在南京召开，标志着学会学科布局进一步完善。",
+      content: "<p>2026年6月10日，中国古生物学会天体生物学分会成立大会在南京地质古生物研究所隆重召开。学会理事长及多位院士出席成立仪式。天体生物学分会的成立，将有力推动我国天体生物学与古生物学的交叉融合研究。</p>",
+      coverUrl: "",
+      publishDate: "2026-06-10",
+      status: "published",
+      originalFile: null,
+      createdBy: "admin",
+    },
+  ],
+  boardCovers: {
+    meeting_notice: "",
+    party_public: "",
+    important_news: "",
+  },
+  publicFiles: [
+    {
+      id: "pf-1",
+      title: "2026年学会图片大赛参赛规则与投稿说明",
+      category: "document",
+      fileName: "2026图片大赛参赛规则.pdf",
+      fileUrl: "/media/photo-contest-2026.pdf",
+      fileSize: "256 KB",
+      remark: "适用于学会年度图片大赛参赛者",
+      downloadCount: 0,
+      uploadDate: "2026-06-18",
+      deleted: false,
+    },
+    {
+      id: "pf-2",
+      title: "科普讲解大赛选手报名表（Word版）",
+      category: "document",
+      fileName: "科普讲解大赛报名表.docx",
+      fileUrl: "/media/kepu-signup.docx",
+      fileSize: "88 KB",
+      remark: "填写完毕后发送至组委会邮箱",
+      downloadCount: 0,
+      uploadDate: "2026-06-18",
+      deleted: false,
+    },
+    {
+      id: "pf-3",
+      title: "党组织学习教育活动宣传片（示例）",
+      category: "video",
+      fileName: "党建学习宣传片示例.mp4",
+      fileUrl: "/media/party-promo.mp4",
+      fileSize: "128 MB",
+      remark: "供各分会党支部参考学习使用",
+      downloadCount: 0,
+      uploadDate: "2026-06-15",
+      deleted: false,
+    },
+    {
+      id: "pf-4",
+      title: "古生物学会2025年优秀图片合集",
+      category: "photo",
+      fileName: "2025优秀图片合集.zip",
+      fileUrl: "/media/photo-2025.zip",
+      fileSize: "512 MB",
+      remark: "2025年度图片大赛优秀作品集锦",
+      downloadCount: 0,
+      uploadDate: "2026-01-10",
+      deleted: false,
+    },
+  ],
 };
 
 function migrateArticle(raw: Partial<CmsArticle>): CmsArticle {
@@ -679,6 +897,9 @@ export function migrateCmsDatabase(raw: Partial<CmsDatabase>): CmsDatabase {
     partyTopics: raw.partyTopics ?? DEFAULT_CMS.partyTopics,
     downloadFiles: raw.downloadFiles ?? DEFAULT_CMS.downloadFiles,
     timelineNodes: raw.timelineNodes ?? DEFAULT_CMS.timelineNodes,
+    publishArticles: raw.publishArticles ?? DEFAULT_CMS.publishArticles,
+    boardCovers: { ...DEFAULT_CMS.boardCovers, ...(raw.boardCovers ?? {}) },
+    publicFiles: raw.publicFiles ?? DEFAULT_CMS.publicFiles,
     media: (raw.media ?? DEFAULT_CMS.media).map(migrateMedia),
     siteConfig: migrateSiteConfig(raw.siteConfig),
   };

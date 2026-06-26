@@ -794,18 +794,20 @@ export const MembershipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       status: "invoice_submitted",
       history: updatedHistory
     };
-    const updatedMembership = smartApproveInvoiceMembership(afterInvoiceSubmit);
+    // 发票提交后停在 invoice_submitted 状态，由管理员/用户手动触发模拟终审
+    // （不再自动调用 smartApproveInvoiceMembership，让用户看到「模拟终审通过」按钮）
+    const updatedMembership = afterInvoiceSubmit;
 
     setSocietyMembership(updatedMembership);
     saveState(`paleo_society_membership_${currentUser.email}`, updatedMembership);
 
     addNotification({
-      title: "会员资格已生效",
-      content: `您的会员费已通过智能终审，会员资格已生效，有效期至 ${updatedMembership.expiryDate}。`,
-      type: "success"
+      title: "电子发票已提交，等待财务终审",
+      content: "您的电子发票已提交，财务人员正在进行终审，通过后会员资格将正式生效。",
+      type: "info"
     });
 
-    toast.success("电子发票已通过智能终审，会员资格已生效。");
+    toast.success("电子发票已提交！请在左侧点击「终审通过」完成最后一步。");
   };
 
   // ==========================================

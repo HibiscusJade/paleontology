@@ -18,8 +18,9 @@ import {
   type CmsArticle, type CmsBanner, type CmsDatabase, type CmsPage, type CmsPerson,
   type CmsGalleryPhoto, type CmsAward, type CmsScienceItem, type CmsInternationalItem,
   type CmsTechRewardItem, type CmsPartyArticle, type CmsPartyTopic, type CmsDownloadFile,
-  type CmsTimelineNode, type CmsMediaItem,
-  CMS_STATUS_LABELS,
+  type CmsTimelineNode, type CmsMediaItem, type CmsPublishArticle, type CmsPublicFile,
+  CMS_STATUS_LABELS, CMS_BOARD_TYPE_LABELS, CMS_FILE_CATEGORY_LABELS,
+  CMS_PUBLIC_FILE_CATEGORY_LABELS, CMS_PUBLIC_FILE_FORMAT_HINTS,
   GALLERY_CATEGORIES, SCIENCE_CATEGORIES, DOWNLOAD_CATEGORIES_SOCIETY,
   generateCmsId, loadCmsDatabase, saveCmsDatabase,
 } from "./cms-data";
@@ -62,6 +63,11 @@ export default function ContentManagement() {
   const [partyColumnFilter, setPartyColumnFilter] = useState<string>("all");
   const [mediaSearch, setMediaSearch] = useState("");
   const [mediaCategory, setMediaCategory] = useState("all");
+  const [editPublish, setEditPublish] = useState<CmsPublishArticle | null>(null);
+  const [publishBoardFilter, setPublishBoardFilter] = useState<string>("all");
+  const [editPublicFile, setEditPublicFile] = useState<CmsPublicFile | null>(null);
+  const [publicFileCategoryFilter, setPublicFileCategoryFilter] = useState<string>("all");
+  const [showFormatHints, setShowFormatHints] = useState<string | null>(null);
 
   const persist = useCallback((next: CmsDatabase) => {
     setDb(next);
@@ -675,6 +681,453 @@ export default function ContentManagement() {
             </CardContent>
           </Card>
       )}
+
+      {/* ── 公开文件下载区管理 ── */}
+      {section === "public-files" && (
+        <div className="space-y-4">
+          {/* 格式提示面板 */}
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Info className="h-4 w-4 text-blue-600" /> 上传文件格式提示备注
+                  </CardTitle>
+                  <CardDescription>点击各分类查看支持格式及转换建议，上传前请确认文件格式合规</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                {(["document", "audio", "video", "photo"] as const).map(cat => {
+                  const hint = CMS_PUBLIC_FILE_FORMAT_HINTS[cat];
+                  const isOpen = showFormatHints === cat;
+                  return (
+                    <div key={cat} className="border rounded-lg overflow-hidden bg-white">
+                      <button
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-left hover:bg-slate-50 transition-colors"
+                        onClick={() => setShowFormatHints(isOpen ? null : cat)}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${cat === "document" ? "bg-blue-500" : cat === "audio" ? "bg-green-500" : cat === "video" ? "bg-purple-500" : "bg-amber-500"}`} />
+                          {CMS_PUBLIC_FILE_CATEGORY_LABELS[cat]}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{isOpen ? "▲" : "▼"}</span>
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-4 space-y-3 border-t">
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold text-slate-600 mb-1">支持格式：</p>
+                            <p className="text-xs text-slate-500 leading-relaxed font-mono bg-slate-50 p-2 rounded">{hint.formats}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-600 mb-1">格式转换建议：</p>
+                            <ul className="space-y-1">
+                              {hint.convert.map((tip, i) => (
+                                <li key={i} className="text-xs text-slate-500 flex items-start gap-1.5">
+                                  <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+                                  {tip}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+                <strong>注意：</strong>视频格式中「MP3」为笔误，MP3 属于音频格式；视频请使用 MP4/AVI/MOV/WMV/MKV/FLV。文件删除为逻辑删除，保留操作日志。
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 文件列表 */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
+              <div>
+                <CardTitle className="text-base">公开文件列表</CardTitle>
+                <CardDescription>所有文件无需登录即可下载；按分类筛选管理</CardDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Select value={publicFileCategoryFilter} onValueChange={setPublicFileCategoryFilter}>
+                  <SelectTrigger className="w-[140px] h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部分类</SelectItem>
+                    {(["document", "audio", "video", "photo"] as const).map(c => (
+                      <SelectItem key={c} value={c}>{CMS_PUBLIC_FILE_CATEGORY_LABELS[c]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={() => setEditPublicFile({
+                  id: generateCmsId("pf"), title: "", category: "document", fileName: "",
+                  fileUrl: "", fileSize: "", remark: "", downloadCount: 0,
+                  uploadDate: new Date().toISOString().split("T")[0], deleted: false,
+                })}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> 上传文件
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>分类</TableHead>
+                    <TableHead>文件名称</TableHead>
+                    <TableHead>大小</TableHead>
+                    <TableHead>下载数</TableHead>
+                    <TableHead>上传日期</TableHead>
+                    <TableHead>备注</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {db.publicFiles
+                    .filter(f => !f.deleted && (publicFileCategoryFilter === "all" || f.category === publicFileCategoryFilter))
+                    .sort((a, b) => b.uploadDate.localeCompare(a.uploadDate))
+                    .map(f => (
+                    <TableRow key={f.id}>
+                      <TableCell>
+                        <Badge variant="outline" className={
+                          f.category === "document" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                          f.category === "audio" ? "text-green-700 border-green-200 bg-green-50" :
+                          f.category === "video" ? "text-purple-700 border-purple-200 bg-purple-50" :
+                          "text-amber-700 border-amber-200 bg-amber-50"
+                        }>{CMS_PUBLIC_FILE_CATEGORY_LABELS[f.category]}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-sm max-w-[200px] truncate" title={f.title}>{f.title}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{f.fileName}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{f.fileSize || "—"}</TableCell>
+                      <TableCell className="text-sm">{f.downloadCount}</TableCell>
+                      <TableCell className="text-sm">{f.uploadDate}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate" title={f.remark}>{f.remark || "—"}</TableCell>
+                      <TableCell className="text-right flex justify-end gap-0.5">
+                        <Button variant="ghost" size="sm" onClick={() => setEditPublicFile({ ...f })}>
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <DeleteButton title={f.title} onConfirm={() => {
+                          persist({ ...db, publicFiles: db.publicFiles.map(x => x.id === f.id ? { ...x, deleted: true } : x) });
+                          toast.success("已逻辑删除（文件记录保留于审计日志）");
+                        }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {db.publicFiles.filter(f => !f.deleted && (publicFileCategoryFilter === "all" || f.category === publicFileCategoryFilter)).length === 0 && (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">暂无文件，点击「上传文件」添加</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── 公开文件编辑弹窗 ── */}
+      <Dialog open={!!editPublicFile} onOpenChange={o => !o && setEditPublicFile(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editPublicFile?.id && db.publicFiles.some(f => f.id === editPublicFile.id) ? "编辑文件信息" : "上传文件"}</DialogTitle>
+          </DialogHeader>
+          {editPublicFile && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>文件分类 <span className="text-red-500">*</span></Label>
+                <Select value={editPublicFile.category} onValueChange={v => setEditPublicFile({ ...editPublicFile, category: v as typeof editPublicFile.category })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["document", "audio", "video", "photo"] as const).map(c => (
+                      <SelectItem key={c} value={c}>
+                        {CMS_PUBLIC_FILE_CATEGORY_LABELS[c]} — {
+                          c === "document" ? ".doc/.docx/.pdf/.xls/.xlsx/.ppt/.pptx/.zip/.rar" :
+                          c === "audio" ? ".mp3/.wav/.m4a" :
+                          c === "video" ? ".mp4/.avi/.mov/.wmv/.mkv/.flv" :
+                          ".jpeg/.jpg/.png/.gif/.tiff"
+                        }
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground bg-slate-50 p-2 rounded border">
+                  ✦ {CMS_PUBLIC_FILE_FORMAT_HINTS[editPublicFile.category].formats}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>文件名称（展示用） <span className="text-red-500">*</span></Label>
+                <Input value={editPublicFile.title} onChange={e => setEditPublicFile({ ...editPublicFile, title: e.target.value })} placeholder="如：2026年图片大赛参赛规则" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>原始文件名</Label>
+                  <Input value={editPublicFile.fileName} onChange={e => setEditPublicFile({ ...editPublicFile, fileName: e.target.value })} placeholder="文件名.pdf" />
+                </div>
+                <div className="space-y-2">
+                  <Label>文件大小</Label>
+                  <Input value={editPublicFile.fileSize} onChange={e => setEditPublicFile({ ...editPublicFile, fileSize: e.target.value })} placeholder="256 KB / 128 MB" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>文件地址（URL）<span className="text-red-500">*</span></Label>
+                <Input value={editPublicFile.fileUrl} onChange={e => setEditPublicFile({ ...editPublicFile, fileUrl: e.target.value })} placeholder="https://... 或 /media/文件名.pdf" />
+              </div>
+              <div className="space-y-2">
+                <Label>备注说明</Label>
+                <Textarea rows={2} value={editPublicFile.remark} onChange={e => setEditPublicFile({ ...editPublicFile, remark: e.target.value })} placeholder="适用场景或说明" />
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded p-3 text-[10px] text-blue-700 space-y-1">
+                <p className="font-bold mb-1">格式转换建议（{CMS_PUBLIC_FILE_CATEGORY_LABELS[editPublicFile.category]}）：</p>
+                {CMS_PUBLIC_FILE_FORMAT_HINTS[editPublicFile.category].convert.map((tip, i) => (
+                  <p key={i}>• {tip}</p>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPublicFile(null)}>取消</Button>
+            <Button onClick={() => {
+              if (!editPublicFile || !editPublicFile.title || !editPublicFile.fileUrl) {
+                toast.error("请填写文件名称和文件地址");
+                return;
+              }
+              const exists = db.publicFiles.some(f => f.id === editPublicFile.id);
+              persist({ ...db, publicFiles: exists
+                ? db.publicFiles.map(f => f.id === editPublicFile.id ? editPublicFile : f)
+                : [...db.publicFiles, editPublicFile]
+              });
+              setEditPublicFile(null);
+              toast.success("已保存");
+            }}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 新闻发布（会议通知 / 党务公开 / 重要新闻） ── */}
+      {section === "publish" && (
+        <div className="space-y-4">
+          {/* 板块背景图配置 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">板块对外展示背景图</CardTitle>
+              <CardDescription>为三个板块的对外展示窗口（首页 Banner 或板块封面）分别配置背景图片</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-3">
+              {(["meeting_notice", "party_public", "important_news"] as const).map(type => (
+                <div key={type} className="space-y-2">
+                  <Label>{CMS_BOARD_TYPE_LABELS[type]}</Label>
+                  <ImageUploadField
+                    label={`${CMS_BOARD_TYPE_LABELS[type]}背景图`}
+                    value={db.boardCovers[type]}
+                    onChange={url => persist({ ...db, boardCovers: { ...db.boardCovers, [type]: url } })}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* 内容列表 */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
+              <div>
+                <CardTitle className="text-base">发布内容列表</CardTitle>
+                <CardDescription>三类内容共用一套管理，按板块类型筛选</CardDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Select value={publishBoardFilter} onValueChange={setPublishBoardFilter}>
+                  <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部板块</SelectItem>
+                    {(["meeting_notice", "party_public", "important_news"] as const).map(t => (
+                      <SelectItem key={t} value={t}>{CMS_BOARD_TYPE_LABELS[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={() => setEditPublish({
+                  id: generateCmsId("pub"), boardType: "meeting_notice", title: "", summary: "",
+                  content: "<p></p>", coverUrl: "", publishDate: new Date().toISOString().split("T")[0],
+                  status: "draft", originalFile: null, createdBy: "admin",
+                })}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> 新建内容
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>板块类型</TableHead>
+                    <TableHead>标题</TableHead>
+                    <TableHead>原文件</TableHead>
+                    <TableHead>发布时间</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {db.publishArticles
+                    .filter(a => publishBoardFilter === "all" || a.boardType === publishBoardFilter)
+                    .sort((a, b) => b.publishDate.localeCompare(a.publishDate))
+                    .map(a => (
+                    <TableRow key={a.id}>
+                      <TableCell>
+                        <Badge variant="outline" className={
+                          a.boardType === "meeting_notice" ? "text-blue-700 border-blue-200 bg-blue-50" :
+                          a.boardType === "party_public" ? "text-red-700 border-red-200 bg-red-50" :
+                          "text-amber-700 border-amber-200 bg-amber-50"
+                        }>{CMS_BOARD_TYPE_LABELS[a.boardType]}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium max-w-[220px] truncate" title={a.title}>{a.title}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {a.originalFile ? (
+                          <span className="flex items-center gap-1">
+                            <span className="text-green-600">✓</span>
+                            {CMS_FILE_CATEGORY_LABELS[a.originalFile.category]}
+                          </span>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">{a.publishDate}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusBadgeClass(a.status)}>
+                          {CMS_STATUS_LABELS[a.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right flex justify-end gap-0.5">
+                        <Button variant="ghost" size="sm" onClick={() => setEditPublish({ ...a })}>
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        {a.status !== "published" ? (
+                          <Button variant="ghost" size="sm" className="text-green-700" title="发布"
+                            onClick={() => { persist({ ...db, publishArticles: db.publishArticles.map(x => x.id === a.id ? { ...x, status: "published" as const } : x) }); toast.success("已发布"); }}>
+                            发布
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="text-amber-700" title="下线"
+                            onClick={() => { persist({ ...db, publishArticles: db.publishArticles.map(x => x.id === a.id ? { ...x, status: "archived" as const } : x) }); toast.success("已下线"); }}>
+                            下线
+                          </Button>
+                        )}
+                        <DeleteButton title={a.title} onConfirm={() => {
+                          persist({ ...db, publishArticles: db.publishArticles.filter(x => x.id !== a.id) });
+                          toast.success("已删除");
+                        }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {db.publishArticles.filter(a => publishBoardFilter === "all" || a.boardType === publishBoardFilter).length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">暂无内容，点击「新建内容」添加</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── 新闻发布编辑弹窗 ── */}
+      <Dialog open={!!editPublish} onOpenChange={o => !o && setEditPublish(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editPublish?.id && db.publishArticles.some(a => a.id === editPublish.id) ? "编辑内容" : "新建内容"}</DialogTitle></DialogHeader>
+          {editPublish && (
+            <div className="space-y-3">
+              {/* 板块类型 */}
+              <div className="space-y-2">
+                <Label>板块类型</Label>
+                <Select value={editPublish.boardType} onValueChange={v => setEditPublish({ ...editPublish, boardType: v as typeof editPublish.boardType })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["meeting_notice", "party_public", "important_news"] as const).map(t => (
+                      <SelectItem key={t} value={t}>{CMS_BOARD_TYPE_LABELS[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>标题</Label><Input value={editPublish.title} onChange={e => setEditPublish({ ...editPublish, title: e.target.value })} /></div>
+              <div className="space-y-2"><Label>摘要</Label><Textarea rows={2} value={editPublish.summary} onChange={e => setEditPublish({ ...editPublish, summary: e.target.value })} /></div>
+              <RichTextEditor label="正文（富文本）" value={editPublish.content} onChange={v => setEditPublish({ ...editPublish, content: v })} />
+              <ImageUploadField label="封面图 / 文章背景图（可选）" value={editPublish.coverUrl} onChange={url => setEditPublish({ ...editPublish, coverUrl: url })} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>发布时间</Label>
+                  <Input type="date" value={editPublish.publishDate} onChange={e => setEditPublish({ ...editPublish, publishDate: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>发布状态</Label>
+                  <Select value={editPublish.status} onValueChange={v => setEditPublish({ ...editPublish, status: v as typeof editPublish.status })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">草稿</SelectItem>
+                      <SelectItem value="published">已发布</SelectItem>
+                      <SelectItem value="archived">已下线</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {/* 原文件下载 */}
+              <div className="border rounded-lg p-3 space-y-3 bg-slate-50">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  原文件下载（发布页底部显示，选择一种格式上传）
+                  {editPublish.originalFile && (
+                    <Button variant="ghost" size="sm" className="h-5 text-xs text-red-500 px-1"
+                      onClick={() => setEditPublish({ ...editPublish, originalFile: null })}>
+                      × 清除
+                    </Button>
+                  )}
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">文件分类</Label>
+                    <Select
+                      value={editPublish.originalFile?.category ?? "document"}
+                      onValueChange={v => setEditPublish({ ...editPublish, originalFile: { ...(editPublish.originalFile ?? { name: "", url: "" }), category: v as typeof editPublish.originalFile.category } })}
+                    >
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(["document", "audio", "video", "photo"] as const).map(c => (
+                          <SelectItem key={c} value={c}>{CMS_FILE_CATEGORY_LABELS[c]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">文件名称</Label>
+                    <Input className="h-8" placeholder="文件名.pdf" value={editPublish.originalFile?.name ?? ""}
+                      onChange={e => setEditPublish({ ...editPublish, originalFile: { ...(editPublish.originalFile ?? { category: "document", url: "" }), name: e.target.value } })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">文件地址（URL 或上传路径）</Label>
+                  <Input placeholder="https://... 或 /media/文件名.pdf" value={editPublish.originalFile?.url ?? ""}
+                    onChange={e => setEditPublish({ ...editPublish, originalFile: { ...(editPublish.originalFile ?? { category: "document", name: "" }), url: e.target.value } })} />
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded p-2 text-[10px] text-blue-700 space-y-0.5">
+                  <p className="font-bold mb-1">上传格式提示备注（选其中一类上传）：</p>
+                  <p>📄 文档类：.doc / .docx（Word）、.pdf（PDF）、.xls / .xlsx（Excel）、.ppt / .pptx（PPT）、.zip / .rar（压缩包）</p>
+                  <p>🎵 音频类：.mp3（MP3）、.wav（WAV）、.m4a（M4A）</p>
+                  <p>🎬 影视类：.mp4（MP4）、.avi（AVI）、.mov（MOV）、.wmv（WMV）、.mkv（MKV）、.flv（FLV）</p>
+                  <p>🖼 照片类：.jpeg / .jpg（JPEG）、.png（PNG）、.gif（GIF）、.tiff（TIFF）</p>
+                  <p className="pt-1 text-blue-500 border-t border-blue-200 mt-1">💡 格式转换：文档→PDF（Office另存为）；视频→MP4（HandBrake免费）；音频→MP3（Audacity免费）；图片→JPG（IrfanView批量）</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPublish(null)}>取消</Button>
+            <Button onClick={() => {
+              if (!editPublish) return;
+              const exists = db.publishArticles.some(a => a.id === editPublish.id);
+              persist({ ...db, publishArticles: exists
+                ? db.publishArticles.map(a => a.id === editPublish.id ? editPublish : a)
+                : [...db.publishArticles, editPublish]
+              });
+              setEditPublish(null);
+              toast.success("已保存");
+            }}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialogs — Banner */}
       <Dialog open={!!editBanner} onOpenChange={o => !o && setEditBanner(null)}>

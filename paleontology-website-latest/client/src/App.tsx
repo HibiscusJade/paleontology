@@ -41,6 +41,8 @@ import International from "./pages/International";
 import DownloadsCenter from "./pages/DownloadsCenter";
 import Regulations from "./pages/Regulations";
 import PersonalCenter from "./pages/PersonalCenter";
+import NewsPublish from "./pages/NewsPublish";
+import PublicDownloads from "./pages/PublicDownloads";
 
 function AppRouter() {
   const routes = (
@@ -52,6 +54,8 @@ function AppRouter() {
       <Route path="/history" component={History} />
       <Route path="/gallery" component={Gallery} />
       <Route path="/society-announcements" component={SocietyAnnouncements} />
+      <Route path="/news-publish" component={NewsPublish} />
+      <Route path="/public-downloads" component={PublicDownloads} />
       <Route path="/international" component={International} />
       <Route path="/downloads-center" component={DownloadsCenter} />
       <Route path="/regulations" component={Regulations} />

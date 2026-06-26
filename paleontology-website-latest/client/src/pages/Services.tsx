@@ -578,14 +578,17 @@ export default function Services() {
           toast.error("请先等待凭证初审通过后再上传发票。");
           return;
         }
-        pickAndReadFile(".jpg,.jpeg,.png,.pdf", 10, (file) => {
-          setMemberInvoice(file);
-          submitMembershipInvoice(file.dataUrl);
-          setMemberPayStep(1);
-          setMemberVoucher(null);
-          setMemberInvoice(null);
-          setShowFeePayment(null);
-        });
+        if (!memberInvoice) {
+          toast.error("请先点击上方区域选择电子发票文件");
+          return;
+        }
+        // 直接使用上传区已选好的文件，不再重新打开文件选择框
+        submitMembershipInvoice(memberInvoice.dataUrl);
+        toast.success("电子发票已提交，等待财务终审！");
+        setMemberPayStep(1);
+        setMemberVoucher(null);
+        setMemberInvoice(null);
+        setShowFeePayment(null);
       };
       const handlePaymentSubmit = () => {
         if (!memberVoucher) {
@@ -905,8 +908,8 @@ export default function Services() {
                 </div>
               )}
 
-              {/* Phase 6: 入会申请流程（取代旧的一步缴费入口） */}
-              {!isNonMember && !isRegular && !hasApplied && (
+              {/* Phase 6: 入会申请流程（含退会后重新申请路径） */}
+              {((!isNonMember && !isRegular && !hasApplied) || (isWithdrawn && appFlowStep > 0)) && (
                 <div className="space-y-4 py-2">
                   {appFlowStep === 0 && (
                     <div className="text-center py-6 space-y-4">
@@ -1093,11 +1096,12 @@ export default function Services() {
               )}
 
               {/* Phase 6: 已退会 */}
-              {isWithdrawn && (
+              {isWithdrawn && appFlowStep === 0 && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                     <p className="font-bold text-slate-600 mb-1">已退会</p>
-                    <p className="text-slate-500">您已退出中国古生物学会。可继续以非会员身份参加学术会议。</p>
+                    <p className="text-slate-500">您已退出中国古生物学会，可继续以非会员身份参加学术会议。</p>
+                    <p className="text-slate-400 text-[10px] mt-1">如需重新成为会员，点击下方按钮开始重新申请流程。</p>
                   </div>
                   <button
                     onClick={() => {
@@ -1247,7 +1251,9 @@ export default function Services() {
                 <div>
                   <h2 className="text-base font-bold text-[#002B49]">会议绑定管理</h2>
                   <p className="text-slate-400 text-[10px] mt-1">
-                    {userType === "regular"
+                    {isWithdrawn
+                      ? "您已退会，原有分会绑定关系保留，仍可以非会员身份接收会议通知并参加学术会议。"
+                      : userType === "regular"
                       ? "请先选择「会员」或「非会员」参与方式，即可绑定任意专业分会；总学会会议对所有注册用户可见。"
                       : userType === "member"
                       ? "您是学会正式会员，可自由绑定或解绑任意专业分会；绑定后接收该分会会议通知与学术资讯。"

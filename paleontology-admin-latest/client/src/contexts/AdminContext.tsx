@@ -566,6 +566,8 @@ const ROUTE_PERMISSIONS: Record<string, AdminRole[]> = {
   "/admin/cms/downloads": ["super_admin", "branch_admin"],
   "/admin/cms/regulations": ["super_admin"],
   "/admin/cms/branch": ["branch_admin"],
+  "/admin/cms/publish": ["super_admin"],
+  "/admin/cms/public-files": ["super_admin", "branch_admin"],
 };
 
 /** 分会管理员 CMS 菜单 — 仅本分站栏目，不含总学会首页/简介等 */
@@ -577,6 +579,7 @@ const BRANCH_CMS_MENU_ITEMS: MenuItem[] = [
   { path: "/admin/cms/awards", label: "获奖成果", icon: "Award" },
   { path: "/admin/cms/downloads", label: "资料下载", icon: "Download" },
   { path: "/admin/cms/media", label: "媒体库", icon: "FolderOpen" },
+  { path: "/admin/cms/public-files", label: "公开文件管理", icon: "FolderUp" },
 ];
 
 const ALL_MENU_ITEMS: MenuItem[] = [
@@ -645,6 +648,8 @@ const ALL_MENU_ITEMS: MenuItem[] = [
       { path: "/admin/cms/regulations", label: "规章条例", icon: "BookOpen" },
       { path: "/admin/cms/media", label: "媒体库", icon: "FolderOpen" },
       { path: "/admin/cms/settings", label: "站点配置", icon: "Settings" },
+      { path: "/admin/cms/publish", label: "新闻发布", icon: "Newspaper" },
+      { path: "/admin/cms/public-files", label: "公开文件管理", icon: "FolderUp" },
     ],
   },
 ];
